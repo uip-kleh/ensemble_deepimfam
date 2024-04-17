@@ -1,0 +1,4 @@
+# DATA PATH
+data_directory: data
+results_directory: data/results
+aaindex1_path: workplace/pyaaindex/aaindex1.json
