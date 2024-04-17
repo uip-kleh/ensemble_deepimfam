@@ -4,12 +4,12 @@ import json
 import numpy as np
 
 class Common:
-    def __init__(self) -> None:
-        self.set_config()
+    def __init__(self, config_path) -> None:
+        self.set_config(config_path)
 
-    def set_config(self):
+    def set_config(self, config_path):
         # TODO: THERE MAY BE BETTER WAY
-        with open("config.yaml" if __name__ == "__main__" else "new_deepimfam/config.yaml", "r") as f: 
+        with open(config_path, "r") as f: 
             args = yaml.safe_load(f)
             self.data_direcotry = self.join_home(args["data_directory"], True)
             self.results_directory = self.join_home(args["results_directory"], True)
@@ -27,8 +27,8 @@ class Common:
 
 # CALC STD
 class AAindex1(Common):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, config_path) -> None:
+        Common.__init__(self, config_path)
         self.load()
 
     # LOAD AAINDEX1 FROM JSON
@@ -74,6 +74,6 @@ class AAindex1(Common):
         print(self.aaindex1[key2])
 
 if __name__ == "__main__":
-    aaindex1 = AAindex1()    
+    aaindex1 = AAindex1(config_path="config.yaml")    
     # aaindex1.calc()
     aaindex1.disp("NAKH900107", "PALJ810108")
