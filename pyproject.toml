@@ -10,6 +10,8 @@ python = "^3.12"
 pyyaml = "^6.0.1"
 pyjson = "^1.4.1"
 numpy = "^1.26.4"
+matplotlib = "^3.8.4"
+pandas = "^2.2.2"
 
 
 [build-system]
