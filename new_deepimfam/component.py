@@ -213,13 +213,18 @@ class ImageGenerator(Common):
 
     def generate_image(self, dat, fname):
 
+        current_pix = 0
+
+
         def setpic (point): 
-            pix[tuple(point)] = np.min([pix[tuple(point)] + 1, maxpix]) # GRAYSCLE 
+            nonlocal current_pix
+            pix[tuple(point)] = current_pix
+            current_pix += 1
             # pix[tuple(point)] = 1 # BINARY
 
         def drawline(from_p, dest_p):
         
-            dx,dy = dest_p - from_p
+            dx, dy = dest_p - from_p
 
             if dx < 0: 
                 dest_p, from_p = from_p, dest_p
@@ -249,7 +254,7 @@ class ImageGenerator(Common):
                 setpic(movp) 
 
         # INITIAL 
-        maxpix = 255 # GRAYSCALE
+        MAX_PIX = 255 # GRAYSCALE
         img = np.array([float(self.IMAGE_SIZE), float(self.IMAGE_SIZE)])
         pix  = np.zeros((self.IMAGE_SIZE, self.IMAGE_SIZE),dtype=int) 
 
@@ -268,11 +273,14 @@ class ImageGenerator(Common):
         for i in range(len(dat) - 1):
             drawline(dat[i], dat[i+1])
 
+        amin, amax = np.amin(pix), np.amax(pix)
+        pix = np.interp(pix, (amin, amax), (0, MAX_PIX)).astype(int)
+
         with open(fname, "w") as f:
-            print("P2\n %d %d\n%d" % (self.IMAGE_SIZE, self.IMAGE_SIZE, maxpix), file=f) 
+            print("P2\n %d %d\n%d" % (self.IMAGE_SIZE, self.IMAGE_SIZE, MAX_PIX), file=f) 
             # print ("P1\n %d %d" % (self.IMAGE_SIZE, self.IMAGE_SIZE), file=f)
             for row in np.flipud(pix.T):
-                print(*(maxpix - row), file=f)  # REVERSE: GRAYSCLE
+                print(*(MAX_PIX - row), file=f)  # REVERSE: GRAYSCLE
                 # print(*(row + 1) % 2, file=f)    # REVERSE: BIMARY 
 
     def convert_pgm(self):
