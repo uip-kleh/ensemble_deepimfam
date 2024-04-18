@@ -3,6 +3,7 @@ import yaml
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 class Common:
     def __init__(self, config_path) -> None:
@@ -18,6 +19,7 @@ class Common:
             self.aaindex1_path = self.join_home(args["aaindex1_path"])
             self.amino_train_path = self.join_home(args["amino_train_data"])
             self.amino_test_path = self.join_home(args["amino_test_data"])
+            self.amino_info_path = self.join_home(args["amino_info_data"])
 
             # EXPERIMENT INDEX
             self.method_directory = self.join_home(args["method_directory"], True)
@@ -28,7 +30,7 @@ class Common:
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
-
+            self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
 
     def join_home(self, fname, is_dir=False):
         fname = os.path.join(os.environ["HOME"], fname)
@@ -151,14 +153,44 @@ class DeepImFam(Common):
                     y += vectors[aa][1]
                     print("{}, {}".format(x, y), file=f)
 
-
     def read_sequences(self, path):
         sequences = []
         with open(path, "r") as f:
             for l in f.readlines():
-                fam, seq = l.split()
+                label, seq = l.split()
                 sequences.append(seq)
         return sequences
+    
+    def read_labels(self, path):
+        labels = []
+        with open(path, "r") as f:
+            for l in f.readlines():
+                label, seq = l.split()
+                labels.append(label)
+        return labels
+    
+    # MAKE IMAGES INFORMATION
+    def make_images_info(self):
+        labels = self.read_labels(self.amino_train_path) + self.read_labels(self.amino_test_path)
+        self.read_trans(self.amino_info_path)
+
+        trans = self.read_trans(self.amino_info_path)
+
+        images_info = {}
+        for i, label in enumerate(labels):
+            fname = os.path.join(self.images_directory, str(i) + ".png")
+            images_info[i] = trans[label] + [fname]
+
+        columns = ["subsubfamily", "family", "subfamily", "path"]
+        pd.DataFrame.from_dict(images_info, orient="index", columns=columns).to_csv(self.images_info_path)
+
+    def read_trans(self, path):
+        trans = {}
+        with open(path, "r") as f:
+            for l in f.readlines():
+                l_split = l.split()
+                trans[l_split[0]] = l_split[1:]
+        return trans
 
 if __name__ == "__main__":
     # TEST: AAindex
@@ -167,4 +199,5 @@ if __name__ == "__main__":
     # aaindex1.disp("NAKH900107", "PALJ810108")
 
     deepimfam = DeepImFam(config_path="config.yaml")
-    deepimfam.calc_coordinate()
+    # deepimfam.calc_coordinate()
+    deepimfam.make_images_info()
