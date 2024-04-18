@@ -4,6 +4,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import cv2
 import tqdm 
 
 class Common:
@@ -274,13 +275,22 @@ class ImageGenerator(Common):
                 print(*(maxpix - row), file=f)  # REVERSE: GRAYSCLE
                 # print(*(row + 1) % 2, file=f)    # REVERSE: BIMARY 
 
+    def convert_pgm(self):
+        for i in range(self.DATA_NUM):
+            pgm_fname = os.path.join(self.images_directory, str(i) + ".pgm")
+            png_fname = os.path.join(self.images_directory, str(i) + ".png")
+
+            cv2.imwrite(png_fname, cv2.imread(pgm_fname))
+
 if __name__ == "__main__":
     # TEST: AAindex
     # aaindex1 = AAindex1(config_path="config.yaml")    
     # aaindex1.calc()
     # aaindex1.disp("NAKH900107", "PALJ810108")
 
-    deepimfam = ImageGenerator(config_path="config.yaml")
-    # deepimfam.calc_coordinate()
-    # deepimfam.make_images_info()
-    deepimfam.generate_images()
+    image_gen = ImageGenerator(config_path="config.yaml")
+    # image_gen.calc_coordinate()
+    # image_gen.make_images_info()
+    # image_gen.generate_images()
+    image_gen.convert_pgm()
+    
