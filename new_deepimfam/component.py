@@ -31,6 +31,7 @@ class Common:
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
             self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
+            self.IMAGE_SIZE = args["IMAGE_SIZE"]
 
     def join_home(self, fname, is_dir=False):
         fname = os.path.join(os.environ["HOME"], fname)
@@ -102,7 +103,7 @@ class AAindex1(Common):
         print(self.aaindex1[key1])
         print(self.aaindex1[key2])
 
-class DeepImFam(Common):
+class ImageGenerator(Common):
     def __init__(self, config_path) -> None:
         Common.__init__(self, config_path)
 
@@ -192,12 +193,91 @@ class DeepImFam(Common):
                 trans[l_split[0]] = l_split[1:]
         return trans
 
+    def generate_images(self):
+        idx = 0
+        while os.path.exists(data_path := os.path.join(self.coordinates_directory, str(idx) + ".dat")):
+            
+            with open(data_path, "r") as f:
+                dat = np.array([list(map(float, l.split(","))) for l in f.readlines()])
+
+                fname = os.path.join(self.images_directory, str(idx) + ".pgm")
+                self.generate_image(dat, fname)
+
+            idx += 1
+    
+    # SET DIRECTION
+    hear, right, left, up, down, up_right = [np.array(list) for list in [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]]
+
+    def generate_image(self, dat, fname):
+
+        def setpic (point): 
+            pix[tuple(point)] = np.min([pix[tuple(point)] + 1, maxpix]) # GRAYSCLE 
+            # pix[tuple(point)] = 1 # BINARY
+
+        def drawline(from_p, dest_p):
+        
+            dx,dy = dest_p - from_p
+
+            if dx < 0: 
+                dest_p, from_p = from_p, dest_p
+                dx, dy = dest_p - from_p
+
+            n_vec = np.array([dy, -dx])
+
+            start = np.array([int(np.floor(p)) for p in from_p]) 
+            endp = np.array([int(np.floor(p)) for p in dest_p]) 
+
+            setpic(start)
+
+            movp =  np.copy(start) 
+            
+            mov2 = self.up if dy >= 0 else self.down
+
+            while not (np.allclose(movp, endp)): 
+
+                vec1 = movp + self.right - from_p
+                vec2 = movp + self.up_right - from_p
+
+                if np.dot(n_vec, vec1) * np.dot(n_vec, vec2) <= 0: 
+                    movp += self.right
+                else:
+                    movp += mov2
+                        
+                setpic(movp) 
+
+        # INITIAL 
+        maxpix = 255 # GRAYSCALE
+        img = np.array([float(self.IMAGE_SIZE), float(self.IMAGE_SIZE)])
+        pix  = np.zeros((self.IMAGE_SIZE, self.IMAGE_SIZE),dtype=int) 
+
+        # RESCALE 
+        max, min = np.max(dat, axis=0), np.min(dat, axis=0)
+        width, height = max - min
+        imgw, imgh = img - 1
+
+        rat = np.max([width / imgw, height / imgh])
+        dat = dat / rat
+        max,min = (max, min) / rat
+
+        mid = (max+min)/2.0
+        dat = [row- mid + img/2. for row in dat]
+
+        for i in range(len(dat)-1):
+            drawline(dat[i], dat[i+1])
+
+        with open(fname, "w") as f:
+            print ("P1\n %d %d" % (self.IMAGE_SIZE, self.IMAGE_SIZE), file=f)
+            for row in np.flipud(pix.T):
+                print(*(maxpix - row), file=f)  # REVERSE: GRAYSCLE
+                # print(*(row + 1) % 2, file=f)    # REVERSE: BIMARY 
+
 if __name__ == "__main__":
     # TEST: AAindex
     # aaindex1 = AAindex1(config_path="config.yaml")    
     # aaindex1.calc()
     # aaindex1.disp("NAKH900107", "PALJ810108")
 
-    deepimfam = DeepImFam(config_path="config.yaml")
+    deepimfam = ImageGenerator(config_path="config.yaml")
     # deepimfam.calc_coordinate()
-    deepimfam.make_images_info()
+    # deepimfam.make_images_info()
+    deepimfam.generate_images()

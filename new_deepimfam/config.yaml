@@ -11,3 +11,4 @@ amino_info_data: data/amino_data/GPCR/trans.txt
 # EXPERIMENT INDEX
 index1: NAKH900107
 index2: PALJ810108
+IMAGE_SIZE: 256
