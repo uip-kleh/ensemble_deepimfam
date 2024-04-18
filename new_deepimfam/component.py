@@ -266,7 +266,8 @@ class ImageGenerator(Common):
             drawline(dat[i], dat[i+1])
 
         with open(fname, "w") as f:
-            print ("P1\n %d %d" % (self.IMAGE_SIZE, self.IMAGE_SIZE), file=f)
+            print("P2\n %d %d\n%d" % (self.IMAGE_SIZE, self.IMAGE_SIZE, maxpix), file=f) 
+            # print ("P1\n %d %d" % (self.IMAGE_SIZE, self.IMAGE_SIZE), file=f)
             for row in np.flipud(pix.T):
                 print(*(maxpix - row), file=f)  # REVERSE: GRAYSCLE
                 # print(*(row + 1) % 2, file=f)    # REVERSE: BIMARY 
