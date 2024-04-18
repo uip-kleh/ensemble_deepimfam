@@ -4,6 +4,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import tqdm 
 
 class Common:
     def __init__(self, config_path) -> None:
@@ -22,6 +23,7 @@ class Common:
             self.amino_info_path = self.join_home(args["amino_info_data"])
 
             # EXPERIMENT INDEX
+            self.DATA_NUM = args["DATA_NUM"]
             self.method_directory = self.join_home(args["method_directory"], True)
             self.index1 = args["index1"]
             self.index2 = args["index2"]
@@ -195,8 +197,8 @@ class ImageGenerator(Common):
 
     def generate_images(self):
         idx = 0
-        while os.path.exists(data_path := os.path.join(self.coordinates_directory, str(idx) + ".dat")):
-            
+        for i in tqdm.tqdm(range(self.DATA_NUM)):
+            data_path = os.path.join(self.coordinates_directory, str(idx) + ".dat")
             with open(data_path, "r") as f:
                 dat = np.array([list(map(float, l.split(","))) for l in f.readlines()])
 
@@ -259,10 +261,10 @@ class ImageGenerator(Common):
         dat = dat / rat
         max,min = (max, min) / rat
 
-        mid = (max+min)/2.0
-        dat = [row- mid + img/2. for row in dat]
+        mid = (max+min) / 2.0
+        dat = [row- mid + img / 2. for row in dat]
 
-        for i in range(len(dat)-1):
+        for i in range(len(dat) - 1):
             drawline(dat[i], dat[i+1])
 
         with open(fname, "w") as f:
