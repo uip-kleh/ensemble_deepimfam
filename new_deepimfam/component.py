@@ -284,7 +284,7 @@ class ImageGenerator(Common):
                 # print(*(row + 1) % 2, file=f)    # REVERSE: BIMARY 
 
     def convert_pgm(self):
-        for i in range(self.DATA_NUM):
+        for i in tqdm.tqdm(range(self.DATA_NUM)):
             pgm_fname = os.path.join(self.images_directory, str(i) + ".pgm")
             png_fname = os.path.join(self.images_directory, str(i) + ".png")
 
