@@ -268,7 +268,7 @@ class ImageGenerator(Common):
         # INITIAL 
         MAX_PIX = 255 # GRAYSCALE
         img = np.array([float(self.IMAGE_SIZE), float(self.IMAGE_SIZE)])
-        pix  = np.zeros((self.IMAGE_SIZE, self.IMAGE_SIZE),dtype=int) 
+        pix  = np.zeros((self.IMAGE_SIZE, self.IMAGE_SIZE), dtype=int) 
 
         # RESCALE 
         max, min = np.max(dat, axis=0), np.min(dat, axis=0)
@@ -277,7 +277,7 @@ class ImageGenerator(Common):
 
         rat = np.max([width / imgw, height / imgh])
         dat = dat / rat
-        max,min = (max, min) / rat
+        max, min = (max, min) / rat
 
         mid = (max+min) / 2.0
         dat = [row- mid + img / 2. for row in dat]
