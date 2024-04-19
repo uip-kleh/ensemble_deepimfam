@@ -308,7 +308,6 @@ class DeepImFam(Common):
 
     def train(self):
         df = pd.read_csv(self.images_info_path)
-        print(df.head())
 
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
@@ -333,6 +332,10 @@ class DeepImFam(Common):
             epochs=2,
         )    
 
+        fname = os.path.join(self.results_directory, "model")
+        model.export(fname)
+
+        # SAVE RESULT
         fname = os.path.join(self.results_directory, "history.csv")
         pd.DataFrame(history.history).to_csv(fname)
 
