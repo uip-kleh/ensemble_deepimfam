@@ -1,4 +1,5 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 import yaml
 import json
 import numpy as np
@@ -6,6 +7,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import cv2
 import tqdm 
+# PACKAGES FOR MACHINE LEARNING
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+from keras_preprocessing.image import ImageDataGenerator
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.regularizers import l2
+
 
 class Common:
     def __init__(self, config_path) -> None:
@@ -35,6 +44,9 @@ class Common:
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
             self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
             self.IMAGE_SIZE = args["IMAGE_SIZE"]
+            self.hierarchy_label = args["hierarchy_label"]
+            self.dropout_ratio = args["DROPOUT_RATIO"]
+            self.BATCH_SIZE = args["BATCH_SIZE"]
 
     def join_home(self, fname, is_dir=False):
         fname = os.path.join(os.environ["HOME"], fname)
@@ -290,15 +302,115 @@ class ImageGenerator(Common):
 
             cv2.imwrite(png_fname, cv2.imread(pgm_fname))
 
+class DeepImFam(Common):
+    def __init__(self, config_path) -> None:
+        Common.__init__(self, config_path)
+
+    def train(self):
+        df = pd.read_csv(self.images_info_path)
+        print(df.head())
+
+        train_df, test_df = train_test_split(
+            df, test_size=.2, stratify=df[self.hierarchy_label], 
+            shuffle=True, random_state=0)
+
+        # SET ImageDataDrameGenerator
+        image_data_frame_gen = self.ImageDataFrameGenerator(
+            images_directory=self.images_directory,
+            x_col="path",
+            y_col=self.hierarchy_label,
+            target_size=(self.IMAGE_SIZE, self.IMAGE_SIZE),
+            batch_size=self.BATCH_SIZE
+        )
+
+        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
+        test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
+
+        model = self.generate_model()
+        history = model.fit(
+            train_gen,
+            validation_data=test_gen,
+            epochs=2,
+        )    
+
+        fname = os.path.join(self.results_directory, "history.csv")
+        pd.DataFrame(history.history).to_csv(fname)
+
+
+    def generate_model(self):
+        model = Sequential([
+            Conv2D(16, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Conv2D(16, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Conv2D(32, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Conv2D(32, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Conv2D(64, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Conv2D(64, (2, 2), padding="same"),
+            MaxPooling2D((2, 2)),
+            Flatten(),
+            Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
+            Dropout(self.dropout_ratio),
+            Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
+            Dropout(self.dropout_ratio),
+            Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
+            Dropout(self.dropout_ratio),
+            Dense(64, activation="relu", kernel_regularizer=l2(0.001)),
+            Dense(5, activation="softmax"),
+            ])
+
+        model.compile(
+            optimizer="adam",
+            loss="categorical_crossentropy",
+            metrics=["accuracy"]
+        )
+
+        return model
+
+
+    class ImageDataFrameGenerator:
+        image_data_gen = ImageDataGenerator(
+            rescale = 1 / 255.
+        )
+
+        def __init__(self, images_directory, x_col, y_col, target_size, batch_size=512,) -> None:
+            self.images_directory = images_directory
+            self.x_col = x_col
+            self.y_col = y_col
+            self.target_size = target_size
+            self.batch_size = batch_size,
+
+        def get_generator(self, df, shuffle=False):
+            # SET GENERATOR
+            generator = self.image_data_gen.flow_from_dataframe(
+                dataframe=df,
+                directory=self.images_directory,
+                x_col=self.x_col,
+                y_col=self.y_col,
+                shuffle=shuffle,
+                seed=0,
+                target_size=self.target_size,
+                color_mode="grayscale",
+                class_mode="categorical",
+            )
+            return generator
+
 if __name__ == "__main__":
     # TEST: AAindex
     # aaindex1 = AAindex1(config_path="config.yaml")    
     # aaindex1.calc()
     # aaindex1.disp("NAKH900107", "PALJ810108")
 
-    image_gen = ImageGenerator(config_path="config.yaml")
+    # image_gen = ImageGenerator(config_path="config.yaml")
     # image_gen.calc_coordinate()
     # image_gen.make_images_info()
     # image_gen.generate_images()
-    image_gen.convert_pgm()
+    # image_gen.convert_pgm()
+
+    deepimfam = DeepImFam(config_path="config.yaml")
+    deepimfam.train()
+
     
