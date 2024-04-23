@@ -166,9 +166,25 @@ class ImageGenerator(Common):
         for i, key in enumerate(keys):
             vectors[key] = [std_values1[i], std_values2[i]]
         return vectors
+    
+    def generate_normed_verctors(self):
+        self.load_aaindex1()
+        keys = self.aaindex1[self.index1].keys()
+        values1 = np.array(list(self.aaindex1[self.index1].values()))
+        values2 = np.array(list(self.aaindex1[self.index2].values()))
+        std_values1 = self.standarize(values1)
+        normed_values2 = self.normalize(values2)
+        vectors = {}
+        for i, key in enumerate(keys):
+            vectors[key] = [std_values1[i], normed_values2[i]]
+        return vectors
+        
 
     def standarize(self, values: np.array):
         return (values - np.mean(values)) / np.std(values) 
+    
+    def normalize(self, values: np.array):
+        return (values - np.min(values)) / (np.max(values) - np.min(values))
     
     def draw_vectors(self, vectors):
         plt.figure()
@@ -177,11 +193,13 @@ class ImageGenerator(Common):
             plt.text(items[0], items[1], key)
         plt.title("_".join([self.index1, self.index1]))
         fname = os.path.join(self.experiment_directory, "vectors.pdf")
-        self.save_figure(fname)
+        draw = Draw()
+        draw.save_figure_as_pdf(fname)
 
     # CALCURATE COORDINATE
     def calc_coordinate(self):
-        vectors = self.generate_std_vectors()
+        # vectors = self.generate_std_vectors()
+        vectors = self.generate_normed_verctors()
         sequences = self.read_sequences(self.amino_train_path) + self.read_sequences(self.amino_test_path)
 
         for i, seq in enumerate(sequences):
