@@ -10,7 +10,7 @@ import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, f1_score
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
@@ -506,6 +506,9 @@ class DeepImFam(Common):
 
     def draw_cm(self):
         test_labels, pred_labels = self.predict()
+
+        print("macro-f1-score: ", f1_score(test_labels, pred_labels, average="macro"))
+        print("micro-f1-score: ", f1_score(test_labels, pred_labels, average="micro"))
 
         draw = Draw()        
 
