@@ -14,6 +14,7 @@ from sklearn.metrics import confusion_matrix
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
+from imblearn.over_sampling import RandomOverSampler
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
@@ -338,6 +339,10 @@ class DeepImFam(Common):
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
             shuffle=True, random_state=0)
+        
+        # OVERSAMPLING
+        sampler = RandomOverSampler(random_state=42)
+        train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
 
         # SET ImageDataDrameGenerator
         image_data_frame_gen = self.ImageDataFrameGenerator(
