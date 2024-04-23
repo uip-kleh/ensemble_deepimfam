@@ -91,8 +91,8 @@ class Draw:
         plt.figure()
         if not norm: sns.heatmap(cm, cmap="Blues", annot=True, fmt="d")
         else: sns.heatmap(cm, cmap="Blues", annot=True, fmt=".2f")
-        plt.xlabel("GT")
-        plt.ylabel("Pred")
+        plt.xlabel("Pred")
+        plt.ylabel("GT")
         self.save_figure_as_pdf(fname)
 
     def save_figure_as_pdf(self, fname):
