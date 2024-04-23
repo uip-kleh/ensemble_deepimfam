@@ -31,7 +31,7 @@ class Common:
             args = yaml.safe_load(f)
             # PATH
             self.data_direcotry = self.join_home(args["data_directory"], True)
-            self.results_directory = self.join_home(args["results_directory"], True)
+            self.results = self.join_home(args["results_directory"], True)
             self.aaindex1_path = self.join_home(args["aaindex1_path"])
             self.amino_train_path = self.join_home(args["amino_train_data"])
             self.amino_test_path = self.join_home(args["amino_test_data"])
