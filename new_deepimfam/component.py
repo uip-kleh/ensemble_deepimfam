@@ -4,11 +4,13 @@ import yaml
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
@@ -70,7 +72,29 @@ class Common:
         with open(self.aaindex1_path, "r") as f:
             self.aaindex1 = json.load(f)
 
-    def save_figure(self, fname):
+class Draw:
+    def __init__(self) -> None:
+        pass
+
+    def draw_history(self, result, label, fname):
+        plt.figure()
+        epochs = [i for i in range(len(result[label]))]
+        plt.plot(epochs, result[label], label="train")
+        plt.plot(epochs, result["val_" + label], label="val_" + label)
+        plt.title(label)
+        plt.legend()
+        plt.tight_layout()
+        self.save_figure_as_pdf(fname)
+    
+    def draw_cm(self, cm, fname, norm=False):
+        plt.figure()
+        if not norm: sns.heatmap(cm, cmap="Blues", annot=True, fmt="d")
+        else: sns.heatmap(cm, cmap="Blues", annot=True, fmt=".2f")
+        plt.xlabel("GT")
+        plt.ylabel("Pred")
+        self.save_figure_as_pdf(fname)
+
+    def save_figure_as_pdf(self, fname):
         plt.tight_layout()
         plt.savefig(fname, transparent=True)
         plt.cla()
@@ -333,7 +357,7 @@ class DeepImFam(Common):
         history = model.fit(
             train_gen,
             validation_data=test_gen,
-            epochs=0,
+            epochs=2,
             # callbacks=[],
         )    
 
@@ -424,28 +448,56 @@ class DeepImFam(Common):
         model = self.load_model()
 
         pred = np.argmax(model.predict(test_gen), axis=1)
-        print(pred)
-        
+        return test_gen.labels, pred
+
     def load_model(self):
         # LOAD MODEL
         fname = os.path.join(self.results_directory, "model.h5")
         model = keras.models.load_model(fname)
         return model
+    
+    def draw_history(self):
+        fname = os.path.join(self.results_directory, "history.csv")
+        history = pd.read_csv(fname)
+
+        draw = Draw()
+        loss_fname = os.path.join(self.results_directory, "loss.pdf")
+        draw.draw_history(history, "loss", loss_fname)
+        accuracy_fname = os.path.join(self.results_directory, "accuracy.pdf")
+        draw.draw_history(history, "accuracy", accuracy_fname)
+
+    def draw_cm(self):
+        test_labels, pred_labels = self.predict()
+
+        draw = Draw()        
+
+        cm = confusion_matrix(test_labels, pred_labels)
+        cm_fname = os.path.join(self.results_directory, "cm.pdf")
+        draw.draw_cm(cm, cm_fname)
+        
+        cm_normed = cm = confusion_matrix(test_labels, pred_labels, normalize="true")
+        cm_normed_fname = os.path.join(self.results_directory, "cm_normed.pdf")
+        draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
 
 if __name__ == "__main__":
-    # TEST: AAindex
+    # TODO: AAindex
     # aaindex1 = AAindex1(config_path="config.yaml")    
     # aaindex1.calc()
     # aaindex1.disp("NAKH900107", "PALJ810108")
 
+    # TODO: Generate Images
     # image_gen = ImageGenerator(config_path="config.yaml")
     # image_gen.calc_coordinate()
     # image_gen.make_images_info()
     # image_gen.generate_images()
     # image_gen.convert_pgm()
 
+    # TODO: Train DeepImFam
     deepimfam = DeepImFam(config_path="config.yaml")
     # deepimfam.train()
     # deepimfam.load_model()
-    deepimfam.predict()
+    # deepimfam.predict()
     
+    # TODO: Draw Result
+    # deepimfam.draw_history()
+    deepimfam.draw_cm()

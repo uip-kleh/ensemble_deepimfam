@@ -17,6 +17,7 @@ opencv-python = "^4.9.0.80"
 scikit-learn = "^1.4.2"
 tensorflow = "^2.16.1"
 keras-preprocessing = "^1.1.2"
+seaborn = "^0.13.2"
 
 
 [build-system]
