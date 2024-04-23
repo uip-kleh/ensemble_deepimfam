@@ -17,7 +17,7 @@ from keras_preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 
 
 class Common:
@@ -352,15 +352,29 @@ class DeepImFam(Common):
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
         # CALLBACK
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.1,
+            patience=10,
+            min_lr=0.0001
+        )
+
+        early_stopping = EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.0,
+            patience=30,
+        )
 
         model = self.generate_model()
         history = model.fit(
             train_gen,
             validation_data=test_gen,
-            epochs=2,
-            # callbacks=[],
+            epochs=100,
+            callbacks=[reduce_lr, early_stopping],
+            batch_size=512,
         )    
 
+        # SAVE MODEL
         fname = os.path.join(self.results_directory, "model.h5")
         model.save(fname)
 
@@ -403,7 +417,8 @@ class DeepImFam(Common):
 
     class ImageDataFrameGenerator:
         image_data_gen = ImageDataGenerator(
-            rescale = 1 / 255.
+            preprocessing_function=lambda img: 1. - img / 255.,
+            # rescale = 1 / 255.
         )
 
         def __init__(self, images_directory, x_col, y_col, target_size, batch_size=512,) -> None:
@@ -499,5 +514,5 @@ if __name__ == "__main__":
     # deepimfam.predict()
     
     # TODO: Draw Result
-    # deepimfam.draw_history()
+    deepimfam.draw_history()
     deepimfam.draw_cm()
