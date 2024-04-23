@@ -10,10 +10,12 @@ import tqdm
 # PACKAGES FOR MACHINE LEARNING
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
+import keras
 from keras_preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
+from keras.callbacks import ModelCheckpoint
 
 
 class Common:
@@ -325,20 +327,22 @@ class DeepImFam(Common):
         train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
+        # CALLBACK
+
         model = self.generate_model()
         history = model.fit(
             train_gen,
             validation_data=test_gen,
-            epochs=2,
+            epochs=0,
+            # callbacks=[],
         )    
 
-        fname = os.path.join(self.results_directory, "model")
-        model.export(fname)
+        fname = os.path.join(self.results_directory, "model.h5")
+        model.save(fname)
 
         # SAVE RESULT
         fname = os.path.join(self.results_directory, "history.csv")
         pd.DataFrame(history.history).to_csv(fname)
-
 
     def generate_model(self):
         model = Sequential([
@@ -373,7 +377,6 @@ class DeepImFam(Common):
 
         return model
 
-
     class ImageDataFrameGenerator:
         image_data_gen = ImageDataGenerator(
             rescale = 1 / 255.
@@ -400,6 +403,34 @@ class DeepImFam(Common):
                 class_mode="categorical",
             )
             return generator
+        
+    def predict(self):
+        df = pd.read_csv(self.images_info_path)
+        _, test_df = train_test_split(
+            df, test_size=.2, stratify=df[self.hierarchy_label], 
+            shuffle=True, random_state=0)
+
+        # SET ImageDataDrameGenerator
+        image_data_frame_gen = self.ImageDataFrameGenerator(
+            images_directory=self.images_directory,
+            x_col="path",
+            y_col=self.hierarchy_label,
+            target_size=(self.IMAGE_SIZE, self.IMAGE_SIZE),
+            batch_size=self.BATCH_SIZE
+        )
+
+        test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
+
+        model = self.load_model()
+
+        pred = np.argmax(model.predict(test_gen), axis=1)
+        print(pred)
+        
+    def load_model(self):
+        # LOAD MODEL
+        fname = os.path.join(self.results_directory, "model.h5")
+        model = keras.models.load_model(fname)
+        return model
 
 if __name__ == "__main__":
     # TEST: AAindex
@@ -414,6 +445,7 @@ if __name__ == "__main__":
     # image_gen.convert_pgm()
 
     deepimfam = DeepImFam(config_path="config.yaml")
-    deepimfam.train()
-
+    # deepimfam.train()
+    # deepimfam.load_model()
+    deepimfam.predict()
     
