@@ -31,7 +31,7 @@ class Common:
             args = yaml.safe_load(f)
             # PATH
             self.data_direcotry = self.join_home(args["data_directory"], True)
-            self.results_directory = self.join_home(args["results_directory"], True)
+            self.results = self.join_home(args["results_directory"], True)
             self.aaindex1_path = self.join_home(args["aaindex1_path"])
             self.amino_train_path = self.join_home(args["amino_train_data"])
             self.amino_test_path = self.join_home(args["amino_test_data"])
@@ -468,7 +468,7 @@ class DeepImFam(Common):
         
     def predict(self):
         df = pd.read_csv(self.images_info_path)
-        _, test_df = train_test_split(
+        train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
             shuffle=True, random_state=0)
 
@@ -481,12 +481,27 @@ class DeepImFam(Common):
             batch_size=self.BATCH_SIZE
         )
 
+        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
         model = self.load_model()
 
-        pred = np.argmax(model.predict(test_gen), axis=1)
-        return test_gen.labels, pred
+        train_pred = np.argmax(model.predict(train_gen), axis=1)
+        test_pred = np.argmax(model.predict(test_gen), axis=1)
+
+        fname = os.path.join(self.results_directory, "train_pred.csv")
+        pd.DataFrame(dict({
+            "test_labels": train_gen.labels,
+            "train_pred": train_pred.tolist(),
+            })).to_csv(fname)
+        
+        fname = os.path.join(self.results_directory, "test_pred.csv")
+        pd.DataFrame(dict({
+            "test_labels": test_gen.labels,
+            "train_pred": test_pred.tolist(),
+            })).to_csv(fname)
+
+        return test_gen.labels, test_pred
 
     def load_model(self):
         # LOAD MODEL
