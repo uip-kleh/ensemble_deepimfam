@@ -67,6 +67,12 @@ class Common:
     def save_obj(self, obj, fname):
         with open(fname, "w") as f:
             json.dump(obj, f, indent=2)
+    
+    def save_dict_as_dataframe(self, obj: dict, fname):
+        pd.DataFrame(obj).to_csv(fname, index_label=False)
+
+    def load_csv_as_dict(self, fname):
+        return pd.read_csv(fname).to_dict(orient="list")
 
     # LOAD AAINDEX1 FROM JSON
     def load_aaindex1(self):
@@ -489,17 +495,19 @@ class DeepImFam(Common):
         train_pred = np.argmax(model.predict(train_gen), axis=1)
         test_pred = np.argmax(model.predict(test_gen), axis=1)
 
-        fname = os.path.join(self.results_directory, "train_pred.csv")
-        pd.DataFrame(dict({
-            "test_labels": train_gen.labels,
-            "train_pred": train_pred.tolist(),
-            })).to_csv(fname)
-        
-        fname = os.path.join(self.results_directory, "test_pred.csv")
-        pd.DataFrame(dict({
-            "test_labels": test_gen.labels,
-            "train_pred": test_pred.tolist(),
-            })).to_csv(fname)
+        train_fname = os.path.join(self.results, "train_predict.csv")
+        test_fname = os.path.join(self.results, "test_predict.csv")
+        if not os.path.exists(train_fname):
+            self.save_dict_as_dataframe({"train_labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"test_labels": test_gen.labels}, test_fname)
+
+        train_dict = self.load_csv_as_dict(train_fname)
+        train_dict["-".join([self.index1, self.index2])] = train_pred.tolist()
+        self.save_dict_as_dataframe(train_dict, train_fname)
+
+        test_dict = self.load_csv_as_dict(test_fname)
+        test_dict["-".join([self.index1, self.index2])] = test_pred.tolist()
+        self.save_dict_as_dataframe(test_dict, test_fname)
 
         return test_gen.labels, test_pred
 
@@ -553,7 +561,9 @@ if __name__ == "__main__":
     # deepimfam.train()
     # deepimfam.load_model()
     # deepimfam.predict()
+    obj = deepimfam.load_csv_as_dict("/home/mizuno/data/results/train_predict.csv")
+    print(obj)
     
     # TODO: Draw Result
-    deepimfam.draw_history()
-    deepimfam.draw_cm()
+    # deepimfam.draw_history()
+    # deepimfam.draw_cm()

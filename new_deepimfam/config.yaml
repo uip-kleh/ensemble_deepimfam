@@ -9,7 +9,6 @@ amino_test_data: data/amino_data/GPCR/cv_0/test.txt
 amino_info_data: data/amino_data/GPCR/trans.txt
 
 DATA_NUM: 7938
-
 # EXPERIMENT INDEX
 index1: SNEP660103
 index2: SNEP660104
@@ -17,9 +16,3 @@ IMAGE_SIZE: 256
 hierarchy_label: family
 DROPOUT_RATIO: .5
 BATCH_SIZE: 512
-
-# ENSEMBLE
-e_index1: NAKH900107
-e_index2: PALJ810108
-e_index3: SNEP660103
-e_index4: SNEP660104
