@@ -10,7 +10,7 @@ import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
@@ -19,6 +19,8 @@ from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+# PACKAGES FOR XGBOOST
+from xgboost import XGBClassifier
 
 
 class Common:
@@ -498,8 +500,8 @@ class DeepImFam(Common):
         train_fname = os.path.join(self.results, "train_predict.csv")
         test_fname = os.path.join(self.results, "test_predict.csv")
         if not os.path.exists(train_fname):
-            self.save_dict_as_dataframe({"train_labels": train_gen.labels}, train_fname)
-            self.save_dict_as_dataframe({"test_labels": test_gen.labels}, test_fname)
+            self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
 
         train_dict = self.load_csv_as_dict(train_fname)
         train_dict["-".join([self.index1, self.index2])] = train_pred.tolist()
@@ -542,6 +544,48 @@ class DeepImFam(Common):
         cm_normed = cm = confusion_matrix(test_labels, pred_labels, normalize="true")
         cm_normed_fname = os.path.join(self.results_directory, "cm_normed.pdf")
         draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
+
+class Ensemble(Common):
+    def __init__(self, config_path) -> None:
+        Common.__init__(self, config_path)
+
+    def train(self):
+        train_df, test_df = self.load_data()
+        train_df, train_labels = self.split_labels(train_df)
+        test_df, test_labels = self.split_labels(test_df)
+
+        train_df = self.dummy_columns(train_df)
+        test_df = self.dummy_columns(test_df)
+
+        model = XGBClassifier()
+        model.fit(train_df, train_labels)
+
+        train_pred = model.predict(train_df)
+        test_pred = model.predict(test_df)
+
+        print("accuracy(train): ", accuracy_score(train_labels, train_pred))
+        print("accuracy(test): ", accuracy_score(test_labels, test_pred))
+
+    def split_labels(self, df: pd.DataFrame):
+        labels = df["labels"]
+        df = df.drop("labels", axis=1)
+        return df, labels
+    
+    def drop_column(self, df: pd.DataFrame, column: str):
+        return df.drop(column, axis=1)
+    
+    def dummy_columns(self, df: pd.DataFrame):
+        for column in df.columns:
+            print(pd.get_dummies(df[column]))
+            df = pd.concat([self.drop_column(df, column), pd.get_dummies(df[column], prefix=column, prefix_sep='-')], axis=1)
+        return df
+
+    def load_data(self):
+        train_fname = os.path.join(self.results, "train_predict.csv")
+        train_df = pd.read_csv(train_fname)
+        test_fname = os.path.join(self.results, "test_predict.csv")
+        test_df = pd.read_csv(test_fname)
+        return train_df, test_df
 
 if __name__ == "__main__":
     # TODO: AAindex
