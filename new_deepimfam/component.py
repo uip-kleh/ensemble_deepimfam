@@ -562,14 +562,14 @@ class Ensemble(Common):
         train_df = self.dummy_columns(train_df)
         test_df = self.dummy_columns(test_df)
 
-        # model = XGBClassifier()
-        model = CatBoostClassifier(
-            iterations=1000,
-            use_best_model=True,
-        )
+        model = XGBClassifier()
+        # model = CatBoostClassifier(
+        #     iterations=1000,
+        #     use_best_model=True,
+        # )
         model.fit(
             train_df, train_labels,
-            eval_set=(test_df, test_labels),
+            # eval_set=(test_df, test_labels),
             )
 
         train_pred = model.predict(train_df)
