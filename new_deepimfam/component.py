@@ -21,6 +21,7 @@ from keras.regularizers import l2
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 # PACKAGES FOR XGBOOST
 from xgboost import XGBClassifier
+from catboost import CatBoostClassifier, Pool
 
 
 class Common:
@@ -551,20 +552,50 @@ class Ensemble(Common):
 
     def train(self):
         train_df, test_df = self.load_data()
+
+        sampler = RandomOverSampler(random_state=42)
+        train_df, _ = sampler.fit_resample(train_df, train_df["labels"])
+
         train_df, train_labels = self.split_labels(train_df)
         test_df, test_labels = self.split_labels(test_df)
 
         train_df = self.dummy_columns(train_df)
         test_df = self.dummy_columns(test_df)
 
-        model = XGBClassifier()
-        model.fit(train_df, train_labels)
+        # model = XGBClassifier()
+        model = CatBoostClassifier(
+            iterations=1000,
+            use_best_model=True,
+        )
+        model.fit(
+            train_df, train_labels,
+            eval_set=(test_df, test_labels),
+            )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
 
+        feature_importance = model.feature_importances_
+        sorted_idx = np.argsort(feature_importance)
+
+        draw = Draw()
+        plt.barh(range(len(sorted_idx)), feature_importance[sorted_idx], align="center")
+        plt.yticks(range(len(sorted_idx)), np.array(train_df.columns)[sorted_idx])
+        plt.title("Feature Importance")
+        fname = os.path.join(self.results, "importance.pdf")
+        draw.save_figure_as_pdf(fname)
+
+        # print(feature_importance)
+
         print("accuracy(train): ", accuracy_score(train_labels, train_pred))
         print("accuracy(test): ", accuracy_score(test_labels, test_pred))
+
+        fname = os.path.join(self.results, "cm.pdf")
+        cm = confusion_matrix(test_labels, test_pred)
+        draw.draw_cm(cm, fname)
+        fname = os.path.join(self.results, "normed_cm.pdf")
+        normed_cm = confusion_matrix(test_labels, test_pred, normalize="true")
+        draw.draw_cm(normed_cm, fname, norm=True)
 
     def split_labels(self, df: pd.DataFrame):
         labels = df["labels"]
@@ -576,7 +607,7 @@ class Ensemble(Common):
     
     def dummy_columns(self, df: pd.DataFrame):
         for column in df.columns:
-            print(pd.get_dummies(df[column]))
+            # print(pd.get_dummies(df[column]))
             df = pd.concat([self.drop_column(df, column), pd.get_dummies(df[column], prefix=column, prefix_sep='-')], axis=1)
         return df
 

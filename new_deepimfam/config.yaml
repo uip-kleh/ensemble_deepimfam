@@ -10,8 +10,8 @@ amino_info_data: data/amino_data/GPCR/trans.txt
 
 DATA_NUM: 7938
 # EXPERIMENT INDEX
-index1: SNEP660103
-index2: SNEP660104
+index1: JURD980101
+index2: DAWD720101
 IMAGE_SIZE: 256
 hierarchy_label: family
 DROPOUT_RATIO: .5
