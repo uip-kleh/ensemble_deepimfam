@@ -9,7 +9,7 @@ import pandas as pd
 import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 import tensorflow as tf
 import keras
@@ -182,7 +182,7 @@ class ImageGenerator(Common):
         values1 = np.array(list(self.aaindex1[self.index1].values()))
         values2 = np.array(list(self.aaindex1[self.index2].values()))
         std_values1 = self.standarize(values1)
-        normed_values2 = self.normalize(values2)
+        normed_values2 = self.normalize(values2) + 0.1
         vectors = {}
         for i, key in enumerate(keys):
             vectors[key] = [std_values1[i], normed_values2[i]]
@@ -339,6 +339,7 @@ class ImageGenerator(Common):
         for i in range(len(dat) - 1):
             drawline(dat[i], dat[i+1])
 
+        # RESCALE PIX
         amin, amax = np.amin(pix), np.amax(pix)
         pix = np.interp(pix, (amin, amax), (0, MAX_PIX)).astype(int)
 
@@ -545,6 +546,62 @@ class DeepImFam(Common):
         cm_normed = cm = confusion_matrix(test_labels, pred_labels, normalize="true")
         cm_normed_fname = os.path.join(self.results_directory, "cm_normed.pdf")
         draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
+
+    def cross_validate(self):
+        df = pd.read_csv(self.images_info_path)
+        index = self.validate_index(df, df[self.hierarchy_label])
+        for i, (train_index, test_index) in enumerate(index):
+            train_df = df.iloc[train_index]
+            test_df = df.iloc[test_index]
+
+            # OVERSAMPLING
+            sampler = RandomOverSampler(random_state=42)
+            train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
+
+            # SET ImageDataDrameGenerator
+            image_data_frame_gen = self.ImageDataFrameGenerator(
+                images_directory=self.images_directory,
+                x_col="path",
+                y_col=self.hierarchy_label,
+                target_size=(self.IMAGE_SIZE, self.IMAGE_SIZE),
+                batch_size=self.BATCH_SIZE
+            )
+
+            train_gen = image_data_frame_gen.get_generator(train_df, shuffle=True)
+            test_gen = image_data_frame_gen.get_generator(test_df, shuffle=False)
+
+            # CALLBACK
+            reduce_lr = ReduceLROnPlateau(
+                monitor='val_loss',
+                factor=0.1,
+                patience=10,
+                min_lr=0.0001
+            )
+
+            early_stopping = EarlyStopping(
+                monitor="val_loss",
+                min_delta=0.0,
+                patience=30,
+            )
+
+            model = self.generate_model()
+            history = model.fit(
+                train_gen,
+                validation_data=test_gen,
+                epochs=100,
+                callbacks=[reduce_lr, early_stopping],
+                batch_size=512,
+            )  
+
+            fname = os.path.join(self.results_directory, "-".join([str(i), "crossvalidation.csv"]))
+            pd.DataFrame(history.history).to_csv(fname)
+
+    def validate_index(self, df, labels):
+        index = []
+        kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+        for train_idx, test_idx in kf.split(df, labels):
+            index.append((train_idx, test_idx))
+        return index
 
 class Ensemble(Common):
     def __init__(self, config_path) -> None:
