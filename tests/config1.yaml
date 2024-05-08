@@ -2,13 +2,14 @@
 data_directory: data
 results_directory: data/results
 aaindex1_path: workplace/pyaaindex/aaindex1.json
-method_directory: data/mizuta2D
+method_directory: data/mizuta2D_NORM
 
 amino_train_data: data/amino_data/GPCR/cv_0/train.txt
 amino_test_data: data/amino_data/GPCR/cv_0/test.txt
 amino_info_data: data/amino_data/GPCR/trans.txt
 
 DATA_NUM: 7938
+
 # EXPERIMENT INDEX
 index1: NAKH900107
 index2: PALJ810108
