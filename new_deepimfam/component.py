@@ -50,6 +50,7 @@ class Common:
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
+            self.metrics_path = os.path.join(self.results_directory, "metrics.json")
             self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
             self.IMAGE_SIZE = args["IMAGE_SIZE"]
             self.hierarchy_label = args["hierarchy_label"]
@@ -418,8 +419,18 @@ class DeepImFam(Common):
         model.save(fname)
 
         # SAVE RESULT
+        result = history.history
         fname = os.path.join(self.results_directory, "history.csv")
-        pd.DataFrame(history.history).to_csv(fname)
+        pd.DataFrame(result).to_csv(fname)
+        if not os.path.exists(self.metrics_path):
+            metrics = {}
+        else:
+            with open(self.metrics_path, "r") as f:
+                metrics = json.load(f)
+        for key in ["loss", "accuracy"]:
+            metrics[key] = result[key][-1]
+            metrics["val_" + key] = result["val_" + key][-1]
+        self.save_obj(metrics, self.metrics_path)
 
     def generate_model(self):
         model = Sequential([
@@ -556,6 +567,9 @@ class DeepImFam(Common):
     def cross_validate(self):
         df = pd.read_csv(self.images_info_path)
         index = self.validate_index(df, df[self.hierarchy_label])
+        results = []
+        scores = []
+
         for i, (train_index, test_index) in enumerate(index):
             train_df = df.iloc[train_index]
             test_df = df.iloc[test_index]
@@ -600,15 +614,30 @@ class DeepImFam(Common):
                 batch_size=512,
             )  
 
+            pred = np.argmax(model.predict(test_gen), axis=1)
+
+            # SAVE RESULTS 
             fname = os.path.join(self.results_directory, "-".join([str(i), "crossvalidation.csv"]))
             pd.DataFrame(history.history).to_csv(fname)
-
+            results.append(history.history["accuracy"][-1])
+            scores.append(f1_score(test_gen.labels, pred, average="macro"))
+            
+        if not os.path.exists(self.metrics_path): 
+            metrics = {}
+        else:
+            with open(self.metrics_path, "r") as f:
+                metrics = json.load(f)
+        metrics["results"] = results
+        metrics["scores"] = scores
+        self.save_obj(metrics, self.metrics_path)
+            
     def validate_index(self, df, labels):
         index = []
         kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
         for train_idx, test_idx in kf.split(df, labels):
             index.append((train_idx, test_idx))
         return index
+    
 
 class Ensemble(Common):
     def __init__(self, config_path) -> None:
