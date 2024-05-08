@@ -207,8 +207,8 @@ class ImageGenerator(Common):
 
     # CALCURATE COORDINATE
     def calc_coordinate(self):
-        # vectors = self.generate_std_vectors()
-        vectors = self.generate_normed_verctors()
+        vectors = self.generate_std_vectors()
+        # vectors = self.generate_normed_verctors()
         sequences = self.read_sequences(self.amino_train_path) + self.read_sequences(self.amino_test_path)
 
         for i, seq in enumerate(sequences):
@@ -289,7 +289,7 @@ class ImageGenerator(Common):
             # pix[tuple(point)] = 1 # BINARY
 
         def drawline(from_p, dest_p):
-        
+            nonlocal current_pix
             dx, dy = dest_p - from_p
 
             if dx < 0: 
@@ -301,7 +301,8 @@ class ImageGenerator(Common):
             start = np.array([int(np.floor(p)) for p in from_p]) 
             endp = np.array([int(np.floor(p)) for p in dest_p]) 
 
-            setpic(start)
+            # setpic(start)
+            pix[tuple(start)] = current_pix
 
             movp =  np.copy(start) 
             
@@ -317,7 +318,9 @@ class ImageGenerator(Common):
                 else:
                     movp += mov2
                         
-                setpic(movp) 
+                # setpic(movp) 
+                pix[tuple(movp)] = current_pix
+                current_pix += 1
 
         # INITIAL 
         MAX_PIX = 255 # GRAYSCALE
@@ -329,12 +332,14 @@ class ImageGenerator(Common):
         width, height = max - min
         imgw, imgh = img - 1
 
-        rat = np.max([width / imgw, height / imgh])
+        # rat = np.max([width / imgw, height / imgh])
+        rat = np.array([width / imgw, height / imgh])
         dat = dat / rat
-        max, min = (max, min) / rat
+        # max, min = (max, min) / rat
+        max, min = max / rat, min / rat
 
-        mid = (max+min) / 2.0
-        dat = [row- mid + img / 2. for row in dat]
+        mid = (max + min) / 2.0
+        dat = [row - mid + img / 2. for row in dat]
 
         for i in range(len(dat) - 1):
             drawline(dat[i], dat[i+1])
@@ -388,21 +393,22 @@ class DeepImFam(Common):
         reduce_lr = ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.1,
-            patience=10,
-            min_lr=0.0001
+            patience=20,
+            min_lr=1e-5
         )
 
+        # モデル
         early_stopping = EarlyStopping(
             monitor="val_loss",
             min_delta=0.0,
-            patience=30,
+            patience=80,
         )
 
         model = self.generate_model()
         history = model.fit(
             train_gen,
             validation_data=test_gen,
-            epochs=100,
+            epochs=1000,
             callbacks=[reduce_lr, early_stopping],
             batch_size=512,
         )    
@@ -574,21 +580,22 @@ class DeepImFam(Common):
             reduce_lr = ReduceLROnPlateau(
                 monitor='val_loss',
                 factor=0.1,
-                patience=10,
-                min_lr=0.0001
+                patience=20,
+                min_lr=1e-5,
             )
 
+            # モデル
             early_stopping = EarlyStopping(
                 monitor="val_loss",
                 min_delta=0.0,
-                patience=30,
+                patience=80,
             )
 
             model = self.generate_model()
             history = model.fit(
                 train_gen,
                 validation_data=test_gen,
-                epochs=100,
+                epochs=1000,
                 callbacks=[reduce_lr, early_stopping],
                 batch_size=512,
             )  
