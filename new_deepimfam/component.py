@@ -333,11 +333,11 @@ class ImageGenerator(Common):
         width, height = max - min
         imgw, imgh = img - 1
 
-        # rat = np.max([width / imgw, height / imgh])
-        rat = np.array([width / imgw, height / imgh])
+        rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
+        # rat = np.array([width / imgw, height / imgh])
         dat = dat / rat
-        # max, min = (max, min) / rat
-        max, min = max / rat, min / rat
+        max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
+        # max, min = max / rat, min / rat
 
         mid = (max + min) / 2.0
         dat = [row - mid + img / 2. for row in dat]
@@ -619,7 +619,7 @@ class DeepImFam(Common):
             # SAVE RESULTS 
             fname = os.path.join(self.results_directory, "-".join([str(i), "crossvalidation.csv"]))
             pd.DataFrame(history.history).to_csv(fname)
-            results.append(history.history["accuracy"][-1])
+            results.append(history.history["val_accuracy"][-1])
             scores.append(f1_score(test_gen.labels, pred, average="macro"))
             
         if not os.path.exists(self.metrics_path): 
@@ -663,7 +663,7 @@ class Ensemble(Common):
         model.fit(
             train_df, train_labels,
             # eval_set=(test_df, test_labels),
-            )
+        )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
@@ -682,7 +682,8 @@ class Ensemble(Common):
 
         print("accuracy(train): ", accuracy_score(train_labels, train_pred))
         print("accuracy(test): ", accuracy_score(test_labels, test_pred))
-
+        
+        # Draw Confusion Matrix
         fname = os.path.join(self.results, "cm.pdf")
         cm = confusion_matrix(test_labels, test_pred)
         draw.draw_cm(cm, fname)

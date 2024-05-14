@@ -9,5 +9,5 @@ if __name__ == "__main__":
     # vectors = image_gen.generate_std_vectors()
     image_gen.make_images_info()
 
-    image_gen.generate_image()
+    image_gen.generate_images()
     image_gen.convert_pgm()
