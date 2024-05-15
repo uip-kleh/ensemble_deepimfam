@@ -208,8 +208,8 @@ class ImageGenerator(Common):
 
     # CALCURATE COORDINATE
     def calc_coordinate(self):
-        vectors = self.generate_std_vectors()
-        # vectors = self.generate_normed_verctors()
+        # vectors = self.generate_std_vectors()
+        vectors = self.generate_normed_verctors()
         sequences = self.read_sequences(self.amino_train_path) + self.read_sequences(self.amino_test_path)
 
         for i, seq in enumerate(sequences):
@@ -333,11 +333,11 @@ class ImageGenerator(Common):
         width, height = max - min
         imgw, imgh = img - 1
 
-        rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
-        # rat = np.array([width / imgw, height / imgh])
+        # rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
+        rat = np.array([width / imgw, height / imgh])
         dat = dat / rat
-        max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
-        # max, min = max / rat, min / rat
+        # max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
+        max, min = max / rat, min / rat
 
         mid = (max + min) / 2.0
         dat = [row - mid + img / 2. for row in dat]
@@ -494,6 +494,7 @@ class DeepImFam(Common):
             return generator
         
     def predict(self):
+        # LOAD IMAGE DATA
         df = pd.read_csv(self.images_info_path)
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
@@ -511,8 +512,10 @@ class DeepImFam(Common):
         train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
+        # LOAD MODEL
         model = self.load_model()
 
+        # PREDICT
         train_pred = np.argmax(model.predict(train_gen), axis=1)
         test_pred = np.argmax(model.predict(test_gen), axis=1)
 
@@ -530,7 +533,7 @@ class DeepImFam(Common):
         test_dict["-".join([self.index1, self.index2])] = test_pred.tolist()
         self.save_dict_as_dataframe(test_dict, test_fname)
 
-        return test_gen.labels, test_pred
+        return train_gen.labels, train_pred, test_gen.labels, test_pred
 
     def load_model(self):
         # LOAD MODEL
@@ -549,19 +552,28 @@ class DeepImFam(Common):
         draw.draw_history(history, "accuracy", accuracy_fname)
 
     def draw_cm(self):
-        test_labels, pred_labels = self.predict()
+        train_labels, train_predictions, test_labels, test_predictions = self.predict()
 
-        print("macro-f1-score: ", f1_score(test_labels, pred_labels, average="macro"))
-        print("micro-f1-score: ", f1_score(test_labels, pred_labels, average="micro"))
+        print("macro-f1-score: ", f1_score(test_labels, test_predictions, average="macro"))
+        print("micro-f1-score: ", f1_score(test_labels, test_predictions, average="micro"))
 
         draw = Draw()        
+        # TRAIN
+        cm_fname = os.path.join(self.results_directory, "train_cm.pdf")
+        cm = confusion_matrix(train_labels, train_predictions)
+        draw.draw_cm(cm, cm_fname)
 
-        cm = confusion_matrix(test_labels, pred_labels)
+        cm_normed_fname = os.path.join(self.results_directory, "train_cm_normed.pdf")
+        cm_normed = confusion_matrix(train_labels, train_predictions, normalize="true")
+        draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
+
+        # TEST
         cm_fname = os.path.join(self.results_directory, "cm.pdf")
+        cm = confusion_matrix(test_labels, test_predictions)
         draw.draw_cm(cm, cm_fname)
         
-        cm_normed = cm = confusion_matrix(test_labels, pred_labels, normalize="true")
         cm_normed_fname = os.path.join(self.results_directory, "cm_normed.pdf")
+        cm_normed = cm = confusion_matrix(test_labels, test_predictions, normalize="true")
         draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
 
     def cross_validate(self):
