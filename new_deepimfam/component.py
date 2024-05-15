@@ -516,9 +516,25 @@ class DeepImFam(Common):
         model = self.load_model()
 
         # PREDICT
-        train_pred = np.argmax(model.predict(train_gen), axis=1)
-        test_pred = np.argmax(model.predict(test_gen), axis=1)
+        train_proba = model.predict(train_gen)
+        test_proba = model.predict(test_gen)
+        train_pred = np.argmax(train_proba, axis=1)
+        test_pred = np.argmax(test_proba, axis=1)
 
+        # SAVE PREDICT PROBA
+        train_fname = os.path.join(self.results, "train_proba.csv")
+        test_fname = os.path.join(self.results, "test_proba.csv")
+        if not os.path.exists(train_fname):
+            self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
+
+        train_dict = self.load_csv_as_dict(train_fname)
+        test_dict = self.load_csv_as_dict(test_fname)
+        for i in range(5):
+            train_dict["-".join([self.index1, self.index2, str(i)])] = train_proba[:, i]
+            train_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+
+        # SAVE PREDICT LABELS
         train_fname = os.path.join(self.results, "train_predict.csv")
         test_fname = os.path.join(self.results, "test_predict.csv")
         if not os.path.exists(train_fname):
@@ -677,10 +693,10 @@ class Ensemble(Common):
         #     iterations=1000,
         #     use_best_model=True,
         # )
-        model.fit(
-            train_df, train_labels,
-            eval_set=(test_df, test_labels),
-        )
+        # model.fit(
+        #     train_df, train_labels,
+        #     eval_set=(test_df, test_labels),
+        # )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
