@@ -693,25 +693,25 @@ class Ensemble(Common):
         # test_df = self.dummy_columns(test_df)
 
         # XGBoost
-        model = XGBClassifier(
-            n_estimators=1000,
-            # early_stopping_rounds=15,
-            )
-        model.fit(
-            train_df, train_labels,
-            eval_set=[(train_df, train_labels), (test_df, test_labels)],
-            verbose=True,
-        )
-
-        # Random Forest
-        # model = RandomForestClassifier(
+        # model = XGBClassifier(
         #     n_estimators=1000,
-        #     verbose=True,
+        #     # early_stopping_rounds=15,
         #     )
-        
         # model.fit(
         #     train_df, train_labels,
-        #     )
+        #     eval_set=[(train_df, train_labels), (test_df, test_labels)],
+        #     verbose=True,
+        # )
+
+        # Random Forest
+        model = RandomForestClassifier(
+            n_estimators=1000,
+            verbose=True,
+            )
+        
+        model.fit(
+            train_df, train_labels,
+            )
 
         # CatBoost
         # model = CatBoostClassifier(
