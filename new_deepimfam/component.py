@@ -22,6 +22,7 @@ from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 # PACKAGES FOR XGBOOST
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier, Pool
+from sklearn.ensemble import RandomForestClassifier
 
 
 class Common:
@@ -430,6 +431,9 @@ class DeepImFam(Common):
         for key in ["loss", "accuracy"]:
             metrics[key] = result[key][-1]
             metrics["val_" + key] = result["val_" + key][-1]
+
+        test_f1 = f1_score(test_gen.labels, np.argmax(model.predict(test_gen), axis=1), average="macro")
+        metrics["test_f1"] = test_f1
         self.save_obj(metrics, self.metrics_path)
 
     def generate_model(self):
@@ -521,6 +525,8 @@ class DeepImFam(Common):
         train_pred = np.argmax(train_proba, axis=1)
         test_pred = np.argmax(test_proba, axis=1)
 
+        print("F1-score", f1_score(test_gen.labels, test_pred, average="macro"))
+
         # SAVE PREDICT PROBA
         train_fname = os.path.join(self.results, "train_proba.csv")
         test_fname = os.path.join(self.results, "test_proba.csv")
@@ -532,7 +538,9 @@ class DeepImFam(Common):
         test_dict = self.load_csv_as_dict(test_fname)
         for i in range(5):
             train_dict["-".join([self.index1, self.index2, str(i)])] = train_proba[:, i]
-            train_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+            test_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+        self.save_dict_as_dataframe(train_dict, train_fname)
+        self.save_dict_as_dataframe(test_dict, test_fname)
 
         # SAVE PREDICT LABELS
         train_fname = os.path.join(self.results, "train_predict.csv")
@@ -672,7 +680,7 @@ class Ensemble(Common):
         Common.__init__(self, config_path)
 
     def train(self):
-        train_df, test_df = self.load_data()
+        train_df, test_df = self.load_data(is_predict=False)
 
         sampler = RandomOverSampler(random_state=42)
         train_df, _ = sampler.fit_resample(train_df, train_df["labels"])
@@ -680,13 +688,30 @@ class Ensemble(Common):
         train_df, train_labels = self.split_labels(train_df)
         test_df, test_labels = self.split_labels(test_df)
 
+        # print(train_df.head())
+        # train_df = self.dummy_columns(train_df)
+        # test_df = self.dummy_columns(test_df)
+
         # XGBoost
-        train_df = self.dummy_columns(train_df)
-        test_df = self.dummy_columns(test_df)
-        model = XGBClassifier()
+        model = XGBClassifier(
+            n_estimators=1000,
+            # early_stopping_rounds=15,
+            )
         model.fit(
             train_df, train_labels,
+            eval_set=[(train_df, train_labels), (test_df, test_labels)],
+            verbose=True,
         )
+
+        # Random Forest
+        # model = RandomForestClassifier(
+        #     n_estimators=1000,
+        #     verbose=True,
+        #     )
+        
+        # model.fit(
+        #     train_df, train_labels,
+        #     )
 
         # CatBoost
         # model = CatBoostClassifier(
@@ -704,6 +729,7 @@ class Ensemble(Common):
         feature_importance = model.feature_importances_
         sorted_idx = np.argsort(feature_importance)
 
+        # DRAW IMPORTANCE
         draw = Draw()
         plt.barh(range(len(sorted_idx)), feature_importance[sorted_idx], align="center")
         plt.yticks(range(len(sorted_idx)), np.array(train_df.columns)[sorted_idx])
@@ -713,8 +739,22 @@ class Ensemble(Common):
 
         # print(feature_importance)
 
-        print("accuracy(train): ", accuracy_score(train_labels, train_pred))
-        print("accuracy(test): ", accuracy_score(test_labels, test_pred))
+        accuracy_train = accuracy_score(train_labels, train_pred)
+        accuracy_test = accuracy_score(test_labels, test_pred)
+        f1_train = f1_score(train_labels, train_pred, average="macro")
+        f1_test = f1_score(test_labels, test_pred, average="macro")
+        print("accuracy(train): ", accuracy_train)
+        print("accuracy(test): ", accuracy_test)
+        
+
+        fname = os.path.join(self.results, "metrics.json")
+        with open(fname, "w") as f:
+            json.dump({
+                "accuracy_train": accuracy_train,
+                "accuracy_test": accuracy_test,
+                "f1_train": f1_train,
+                "f1_test": f1_test,
+            }, f, indent=2)
         
         # Draw Confusion Matrix
         fname = os.path.join(self.results, "cm.pdf")
@@ -738,10 +778,15 @@ class Ensemble(Common):
             df = pd.concat([self.drop_column(df, column), pd.get_dummies(df[column], prefix=column, prefix_sep='-')], axis=1)
         return df
 
-    def load_data(self):
-        train_fname = os.path.join(self.results, "train_predict.csv")
+    def load_data(self, is_predict=True):
+        if is_predict:
+            train_fname = os.path.join(self.results, "train_predict.csv")
+            test_fname = os.path.join(self.results, "test_predict.csv")
+        else:
+            train_fname = os.path.join(self.results, "train_proba.csv")
+            test_fname = os.path.join(self.results, "test_proba.csv")
+        print(train_fname, test_fname)
         train_df = pd.read_csv(train_fname)
-        test_fname = os.path.join(self.results, "test_predict.csv")
         test_df = pd.read_csv(test_fname)
         return train_df, test_df
 
