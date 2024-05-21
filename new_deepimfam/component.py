@@ -9,8 +9,10 @@ import pandas as pd
 import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
+from sklearn.utils.class_weight import compute_sample_weight
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
@@ -51,6 +53,7 @@ class Common:
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
+            self.results_directory = self.make_directory(os.path.join(self.results_directory, args["model_method"]))
             self.metrics_path = os.path.join(self.results_directory, "metrics.json")
             self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
             self.IMAGE_SIZE = args["IMAGE_SIZE"]
@@ -60,8 +63,8 @@ class Common:
 
     def join_home(self, fname, is_dir=False):
         fname = os.path.join(os.environ["HOME"], fname)
-        if not os.path.exists(fname) and is_dir: 
-            os.mkdir(fname)
+        if is_dir:
+            self.make_directory(fname)
         return fname
     
     def make_directory(self, fname):
@@ -370,7 +373,6 @@ class DeepImFam(Common):
 
     def train(self):
         df = pd.read_csv(self.images_info_path)
-
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
             shuffle=True, random_state=0)
@@ -451,8 +453,8 @@ class DeepImFam(Common):
             Conv2D(64, (2, 2), padding="same"),
             MaxPooling2D((2, 2)),
             Flatten(),
-            Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
-            Dropout(self.dropout_ratio),
+            # Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
+            # Dropout(self.dropout_ratio),
             Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
             Dropout(self.dropout_ratio),
             Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
@@ -483,6 +485,9 @@ class DeepImFam(Common):
             self.batch_size = batch_size,
 
         def get_generator(self, df, shuffle=False):
+            # CALC SAMPLE WEIGHT
+            # sample_weight = compute_sample_weight(class_weight="balanced", y=df[self.y_col])
+
             # SET GENERATOR
             generator = self.image_data_gen.flow_from_dataframe(
                 dataframe=df,
@@ -494,6 +499,7 @@ class DeepImFam(Common):
                 target_size=self.target_size,
                 color_mode="grayscale",
                 class_mode="categorical",
+                # sample_weight=sample_weight
             )
             return generator
         
@@ -611,8 +617,8 @@ class DeepImFam(Common):
             test_df = df.iloc[test_index]
 
             # OVERSAMPLING
-            sampler = RandomOverSampler(random_state=42)
-            train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
+            # sampler = RandomOverSampler(random_state=42)
+            # train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
 
             # SET ImageDataDrameGenerator
             image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -704,24 +710,24 @@ class Ensemble(Common):
         # )
 
         # Random Forest
-        model = RandomForestClassifier(
-            n_estimators=1000,
-            verbose=True,
-            )
+        # model = RandomForestClassifier(
+        #     n_estimators=1000,
+        #     verbose=True,
+        #     )
         
-        model.fit(
-            train_df, train_labels,
-            )
-
-        # CatBoost
-        # model = CatBoostClassifier(
-        #     iterations=1000,
-        #     use_best_model=True,
-        # )
         # model.fit(
         #     train_df, train_labels,
-        #     eval_set=(test_df, test_labels),
-        # )
+        #     )
+
+        # CatBoost
+        model = CatBoostClassifier(
+            iterations=1000,
+            use_best_model=True,
+        )
+        model.fit(
+            train_df, train_labels,
+            eval_set=(test_df, test_labels),
+        )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
