@@ -20,6 +20,7 @@ from imblearn.over_sampling import RandomOverSampler
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
+from keras.losses import CategoricalFocalCrossentropy
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 # PACKAGES FOR XGBOOST
 from xgboost import XGBClassifier
@@ -148,7 +149,7 @@ class AAindex1(Common):
                 results.append([abs(corr[0][1]), key1, key2])
         
         results.sort()
-        fname = os.path.join(self.results_directory, "corr.json")
+        fname = os.path.join(self.results, "corr.json")
         self.save_obj(results, fname)
 
     def has_same_value(self, values):
@@ -378,8 +379,8 @@ class DeepImFam(Common):
             shuffle=True, random_state=0)
         
         # OVERSAMPLING
-        sampler = RandomOverSampler(random_state=42)
-        train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
+        # sampler = RandomOverSampler(random_state=42)
+        # train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
 
         # SET ImageDataDrameGenerator
         image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -397,7 +398,7 @@ class DeepImFam(Common):
         reduce_lr = ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.1,
-            patience=20,
+            patience=10,
             min_lr=1e-5
         )
 
@@ -405,7 +406,7 @@ class DeepImFam(Common):
         early_stopping = EarlyStopping(
             monitor="val_loss",
             min_delta=0.0,
-            patience=80,
+            patience=30,
         )
 
         model = self.generate_model()
@@ -440,7 +441,7 @@ class DeepImFam(Common):
 
     def generate_model(self):
         model = Sequential([
-            Conv2D(16, (2, 2), padding="same"),
+            Conv2D(16, (2, 2), padding="same", input_shape=(self.IMAGE_SIZE, self.IMAGE_SIZE, 1)),
             MaxPooling2D((2, 2)),
             Conv2D(16, (2, 2), padding="same"),
             MaxPooling2D((2, 2)),
@@ -450,8 +451,8 @@ class DeepImFam(Common):
             MaxPooling2D((2, 2)),
             Conv2D(64, (2, 2), padding="same"),
             MaxPooling2D((2, 2)),
-            Conv2D(64, (2, 2), padding="same"),
-            MaxPooling2D((2, 2)),
+            # Conv2D(64, (2, 2), padding="same"),
+            # MaxPooling2D((2, 2)),
             Flatten(),
             # Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
             # Dropout(self.dropout_ratio),
@@ -462,10 +463,11 @@ class DeepImFam(Common):
             Dense(64, activation="relu", kernel_regularizer=l2(0.001)),
             Dense(5, activation="softmax"),
             ])
-
+        
         model.compile(
             optimizer="adam",
-            loss="categorical_crossentropy",
+            # loss="categorical_crossentropy",
+            loss=CategoricalFocalCrossentropy(name="CategoricalFocal"),
             metrics=["accuracy"]
         )
 
@@ -486,7 +488,7 @@ class DeepImFam(Common):
 
         def get_generator(self, df, shuffle=False):
             # CALC SAMPLE WEIGHT
-            # sample_weight = compute_sample_weight(class_weight="balanced", y=df[self.y_col])
+            sample_weight = compute_sample_weight(class_weight="balanced", y=df[self.y_col])
 
             # SET GENERATOR
             generator = self.image_data_gen.flow_from_dataframe(
@@ -499,7 +501,7 @@ class DeepImFam(Common):
                 target_size=self.target_size,
                 color_mode="grayscale",
                 class_mode="categorical",
-                # sample_weight=sample_weight
+                sample_weight=sample_weight
             )
             return generator
         
@@ -534,8 +536,8 @@ class DeepImFam(Common):
         print("F1-score", f1_score(test_gen.labels, test_pred, average="macro"))
 
         # SAVE PREDICT PROBA
-        train_fname = os.path.join(self.results, "train_proba.csv")
-        test_fname = os.path.join(self.results, "test_proba.csv")
+        train_fname = os.path.join(self.results, "train_proba_weighted.csv")
+        test_fname = os.path.join(self.results, "test_proba_weighted.csv")
         if not os.path.exists(train_fname):
             self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
             self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
@@ -549,8 +551,8 @@ class DeepImFam(Common):
         self.save_dict_as_dataframe(test_dict, test_fname)
 
         # SAVE PREDICT LABELS
-        train_fname = os.path.join(self.results, "train_predict.csv")
-        test_fname = os.path.join(self.results, "test_predict.csv")
+        train_fname = os.path.join(self.results, "train_predict_weighted.csv")
+        test_fname = os.path.join(self.results, "test_predict_weighted.csv")
         if not os.path.exists(train_fname):
             self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
             self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
@@ -710,24 +712,24 @@ class Ensemble(Common):
         # )
 
         # Random Forest
-        # model = RandomForestClassifier(
-        #     n_estimators=1000,
-        #     verbose=True,
-        #     )
+        model = RandomForestClassifier(
+            n_estimators=1000,
+            verbose=True,
+            )
         
-        # model.fit(
-        #     train_df, train_labels,
-        #     )
-
-        # CatBoost
-        model = CatBoostClassifier(
-            iterations=1000,
-            use_best_model=True,
-        )
         model.fit(
             train_df, train_labels,
-            eval_set=(test_df, test_labels),
-        )
+            )
+
+        # CatBoost
+        # model = CatBoostClassifier(
+        #     iterations=1000,
+        #     use_best_model=True,
+        # )
+        # model.fit(
+        #     train_df, train_labels,
+        #     eval_set=(test_df, test_labels),
+        # )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
@@ -786,11 +788,11 @@ class Ensemble(Common):
 
     def load_data(self, is_predict=True):
         if is_predict:
-            train_fname = os.path.join(self.results, "train_predict.csv")
-            test_fname = os.path.join(self.results, "test_predict.csv")
+            train_fname = os.path.join(self.results, "train_predict_weighted.csv")
+            test_fname = os.path.join(self.results, "test_predict_weighted.csv")
         else:
-            train_fname = os.path.join(self.results, "train_proba.csv")
-            test_fname = os.path.join(self.results, "test_proba.csv")
+            train_fname = os.path.join(self.results, "train_proba_weighted.csv")
+            test_fname = os.path.join(self.results, "test_proba_weighted.csv")
         print(train_fname, test_fname)
         train_df = pd.read_csv(train_fname)
         test_df = pd.read_csv(test_fname)
