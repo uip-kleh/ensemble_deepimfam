@@ -44,8 +44,7 @@ class Common:
 
             # EXPERIMENT INDEX
             self.DATA_NUM = args["DATA_NUM"]
-            self.method_directory = self.make_directory(os.path.join(self.data_direcotry, self.method))
-            self.method_directory = self.join_home(args["method_directory"], True)
+            self.method_directory = self.join_home(args["method_directory"])
             self.index1 = args["index1"]
             self.index2 = args["index2"]
             index_combination = "_".join([self.index1, self.index2])
@@ -434,6 +433,11 @@ class DeepImFam(Common):
             metrics[key] = result[key][-1]
             metrics["val_" + key] = result["val_" + key][-1]
         self.save_obj(metrics, self.metrics_path)
+
+    def split_train_test(self, df, test_size=.2):
+        return train_test_split(
+            df, test_size=test_size, stratify=df[self.hierarchy_label], 
+            shuffle=True, random_state=0)
 
     def generate_model(self):
         model = Sequential([
