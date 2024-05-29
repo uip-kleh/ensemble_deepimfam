@@ -35,6 +35,8 @@ class Common:
             # PATH
             self.data_direcotry = self.join_home(args["data_directory"], True)
             self.results = self.join_home(args["results_directory"], True)
+            self.method = args["method"]
+            self.results = self.make_directory(os.path.join(self.results, self.method))
             self.aaindex1_path = self.join_home(args["aaindex1_path"])
             self.amino_train_path = self.join_home(args["amino_train_data"])
             self.amino_test_path = self.join_home(args["amino_test_data"])
@@ -42,6 +44,7 @@ class Common:
 
             # EXPERIMENT INDEX
             self.DATA_NUM = args["DATA_NUM"]
+            self.method_directory = self.make_directory(os.path.join(self.data_direcotry, self.method))
             self.method_directory = self.join_home(args["method_directory"], True)
             self.index1 = args["index1"]
             self.index2 = args["index2"]
