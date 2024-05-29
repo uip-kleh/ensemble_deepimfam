@@ -793,7 +793,6 @@ class Ensemble(Common):
         else:
             train_fname = os.path.join(self.results, "train_proba_weighted.csv")
             test_fname = os.path.join(self.results, "test_proba_weighted.csv")
-        print(train_fname, test_fname)
         train_df = pd.read_csv(train_fname)
         test_df = pd.read_csv(test_fname)
         return train_df, test_df
