@@ -9,8 +9,10 @@ import pandas as pd
 import cv2
 import tqdm 
 # PACKAGES FOR MACHINE LEARNING
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
+from sklearn.utils.class_weight import compute_sample_weight
 import tensorflow as tf
 import keras
 from keras_preprocessing.image import ImageDataGenerator
@@ -18,10 +20,12 @@ from imblearn.over_sampling import RandomOverSampler
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from keras.regularizers import l2
+from keras.losses import CategoricalFocalCrossentropy
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 # PACKAGES FOR XGBOOST
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier, Pool
+from sklearn.ensemble import RandomForestClassifier
 
 
 class Common:
@@ -37,6 +41,7 @@ class Common:
             self.results = self.join_home(args["results_directory"], True)
             self.method = args["method"]
             self.results = self.make_directory(os.path.join(self.results, self.method))
+            self.results = self.make_directory(os.path.join(self.results, args["model_method"]))
             self.aaindex1_path = self.join_home(args["aaindex1_path"])
             self.amino_train_path = self.join_home(args["amino_train_data"])
             self.amino_test_path = self.join_home(args["amino_test_data"])
@@ -52,6 +57,7 @@ class Common:
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
+            self.results_directory = self.make_directory(os.path.join(self.results_directory, args["model_method"]))
             self.metrics_path = os.path.join(self.results_directory, "metrics.json")
             self.images_info_path = os.path.join(self.images_directory, "images_info.csv")
             self.IMAGE_SIZE = args["IMAGE_SIZE"]
@@ -61,8 +67,8 @@ class Common:
 
     def join_home(self, fname, is_dir=False):
         fname = os.path.join(os.environ["HOME"], fname)
-        if not os.path.exists(fname) and is_dir: 
-            os.mkdir(fname)
+        if is_dir:
+            self.make_directory(fname)
         return fname
     
     def make_directory(self, fname):
@@ -146,7 +152,7 @@ class AAindex1(Common):
                 results.append([abs(corr[0][1]), key1, key2])
         
         results.sort()
-        fname = os.path.join(self.results_directory, "corr.json")
+        fname = os.path.join(self.results, "corr.json")
         self.save_obj(results, fname)
 
     def has_same_value(self, values):
@@ -210,8 +216,8 @@ class ImageGenerator(Common):
 
     # CALCURATE COORDINATE
     def calc_coordinate(self):
-        vectors = self.generate_std_vectors()
-        # vectors = self.generate_normed_verctors()
+        # vectors = self.generate_std_vectors()
+        vectors = self.generate_normed_verctors()
         sequences = self.read_sequences(self.amino_train_path) + self.read_sequences(self.amino_test_path)
 
         for i, seq in enumerate(sequences):
@@ -335,11 +341,11 @@ class ImageGenerator(Common):
         width, height = max - min
         imgw, imgh = img - 1
 
-        rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
-        # rat = np.array([width / imgw, height / imgh])
+        # rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
+        rat = np.array([width / imgw, height / imgh])
         dat = dat / rat
-        max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
-        # max, min = max / rat, min / rat
+        # max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
+        max, min = max / rat, min / rat
 
         mid = (max + min) / 2.0
         dat = [row - mid + img / 2. for row in dat]
@@ -371,14 +377,13 @@ class DeepImFam(Common):
 
     def train(self):
         df = pd.read_csv(self.images_info_path)
-
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
             shuffle=True, random_state=0)
         
         # OVERSAMPLING
-        sampler = RandomOverSampler(random_state=42)
-        train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
+        # sampler = RandomOverSampler(random_state=42)
+        # train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
 
         # SET ImageDataDrameGenerator
         image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -396,7 +401,7 @@ class DeepImFam(Common):
         reduce_lr = ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.1,
-            patience=20,
+            patience=10,
             min_lr=1e-5
         )
 
@@ -404,7 +409,7 @@ class DeepImFam(Common):
         early_stopping = EarlyStopping(
             monitor="val_loss",
             min_delta=0.0,
-            patience=80,
+            patience=30,
         )
 
         model = self.generate_model()
@@ -432,6 +437,9 @@ class DeepImFam(Common):
         for key in ["loss", "accuracy"]:
             metrics[key] = result[key][-1]
             metrics["val_" + key] = result["val_" + key][-1]
+
+        test_f1 = f1_score(test_gen.labels, np.argmax(model.predict(test_gen), axis=1), average="macro")
+        metrics["test_f1"] = test_f1
         self.save_obj(metrics, self.metrics_path)
 
     def split_train_test(self, df, test_size=.2):
@@ -441,7 +449,7 @@ class DeepImFam(Common):
 
     def generate_model(self):
         model = Sequential([
-            Conv2D(16, (2, 2), padding="same"),
+            Conv2D(16, (2, 2), padding="same", input_shape=(self.IMAGE_SIZE, self.IMAGE_SIZE, 1)),
             MaxPooling2D((2, 2)),
             Conv2D(16, (2, 2), padding="same"),
             MaxPooling2D((2, 2)),
@@ -451,11 +459,11 @@ class DeepImFam(Common):
             MaxPooling2D((2, 2)),
             Conv2D(64, (2, 2), padding="same"),
             MaxPooling2D((2, 2)),
-            Conv2D(64, (2, 2), padding="same"),
-            MaxPooling2D((2, 2)),
+            # Conv2D(64, (2, 2), padding="same"),
+            # MaxPooling2D((2, 2)),
             Flatten(),
-            Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
-            Dropout(self.dropout_ratio),
+            # Dense(32, activation="relu", kernel_regularizer=l2(0.001)),
+            # Dropout(self.dropout_ratio),
             Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
             Dropout(self.dropout_ratio),
             Dense(512, activation="relu", kernel_regularizer=l2(0.001)),
@@ -463,10 +471,11 @@ class DeepImFam(Common):
             Dense(64, activation="relu", kernel_regularizer=l2(0.001)),
             Dense(5, activation="softmax"),
             ])
-
+        
         model.compile(
             optimizer="adam",
-            loss="categorical_crossentropy",
+            # loss="categorical_crossentropy",
+            loss=CategoricalFocalCrossentropy(name="CategoricalFocal"),
             metrics=["accuracy"]
         )
 
@@ -486,6 +495,9 @@ class DeepImFam(Common):
             self.batch_size = batch_size,
 
         def get_generator(self, df, shuffle=False):
+            # CALC SAMPLE WEIGHT
+            sample_weight = compute_sample_weight(class_weight="balanced", y=df[self.y_col])
+
             # SET GENERATOR
             generator = self.image_data_gen.flow_from_dataframe(
                 dataframe=df,
@@ -497,10 +509,12 @@ class DeepImFam(Common):
                 target_size=self.target_size,
                 color_mode="grayscale",
                 class_mode="categorical",
+                sample_weight=sample_weight
             )
             return generator
         
     def predict(self):
+        # LOAD IMAGE DATA
         df = pd.read_csv(self.images_info_path)
         train_df, test_df = train_test_split(
             df, test_size=.2, stratify=df[self.hierarchy_label], 
@@ -518,13 +532,35 @@ class DeepImFam(Common):
         train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
+        # LOAD MODEL
         model = self.load_model()
 
-        train_pred = np.argmax(model.predict(train_gen), axis=1)
-        test_pred = np.argmax(model.predict(test_gen), axis=1)
+        # PREDICT
+        train_proba = model.predict(train_gen)
+        test_proba = model.predict(test_gen)
+        train_pred = np.argmax(train_proba, axis=1)
+        test_pred = np.argmax(test_proba, axis=1)
 
-        train_fname = os.path.join(self.results, "train_predict.csv")
-        test_fname = os.path.join(self.results, "test_predict.csv")
+        print("F1-score", f1_score(test_gen.labels, test_pred, average="macro"))
+
+        # SAVE PREDICT PROBA
+        train_fname = os.path.join(self.results, "train_proba_weighted.csv")
+        test_fname = os.path.join(self.results, "test_proba_weighted.csv")
+        if not os.path.exists(train_fname):
+            self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
+
+        train_dict = self.load_csv_as_dict(train_fname)
+        test_dict = self.load_csv_as_dict(test_fname)
+        for i in range(5):
+            train_dict["-".join([self.index1, self.index2, str(i)])] = train_proba[:, i]
+            test_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+        self.save_dict_as_dataframe(train_dict, train_fname)
+        self.save_dict_as_dataframe(test_dict, test_fname)
+
+        # SAVE PREDICT LABELS
+        train_fname = os.path.join(self.results, "train_predict_weighted.csv")
+        test_fname = os.path.join(self.results, "test_predict_weighted.csv")
         if not os.path.exists(train_fname):
             self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
             self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
@@ -537,7 +573,7 @@ class DeepImFam(Common):
         test_dict["-".join([self.index1, self.index2])] = test_pred.tolist()
         self.save_dict_as_dataframe(test_dict, test_fname)
 
-        return test_gen.labels, test_pred
+        return train_gen.labels, train_pred, test_gen.labels, test_pred
 
     def load_model(self):
         # LOAD MODEL
@@ -556,19 +592,28 @@ class DeepImFam(Common):
         draw.draw_history(history, "accuracy", accuracy_fname)
 
     def draw_cm(self):
-        test_labels, pred_labels = self.predict()
+        train_labels, train_predictions, test_labels, test_predictions = self.predict()
 
-        print("macro-f1-score: ", f1_score(test_labels, pred_labels, average="macro"))
-        print("micro-f1-score: ", f1_score(test_labels, pred_labels, average="micro"))
+        print("macro-f1-score: ", f1_score(test_labels, test_predictions, average="macro"))
+        print("micro-f1-score: ", f1_score(test_labels, test_predictions, average="micro"))
 
         draw = Draw()        
+        # TRAIN
+        cm_fname = os.path.join(self.results_directory, "train_cm.pdf")
+        cm = confusion_matrix(train_labels, train_predictions)
+        draw.draw_cm(cm, cm_fname)
 
-        cm = confusion_matrix(test_labels, pred_labels)
+        cm_normed_fname = os.path.join(self.results_directory, "train_cm_normed.pdf")
+        cm_normed = confusion_matrix(train_labels, train_predictions, normalize="true")
+        draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
+
+        # TEST
         cm_fname = os.path.join(self.results_directory, "cm.pdf")
+        cm = confusion_matrix(test_labels, test_predictions)
         draw.draw_cm(cm, cm_fname)
         
-        cm_normed = cm = confusion_matrix(test_labels, pred_labels, normalize="true")
         cm_normed_fname = os.path.join(self.results_directory, "cm_normed.pdf")
+        cm_normed = cm = confusion_matrix(test_labels, test_predictions, normalize="true")
         draw.draw_cm(cm_normed, cm_normed_fname, norm=True)
 
     def cross_validate(self):
@@ -582,8 +627,8 @@ class DeepImFam(Common):
             test_df = df.iloc[test_index]
 
             # OVERSAMPLING
-            sampler = RandomOverSampler(random_state=42)
-            train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
+            # sampler = RandomOverSampler(random_state=42)
+            # train_df, _ = sampler.fit_resample(train_df, train_df[self.hierarchy_label])
 
             # SET ImageDataDrameGenerator
             image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -651,7 +696,7 @@ class Ensemble(Common):
         Common.__init__(self, config_path)
 
     def train(self):
-        train_df, test_df = self.load_data()
+        train_df, test_df = self.load_data(is_predict=False)
 
         sampler = RandomOverSampler(random_state=42)
         train_df, _ = sampler.fit_resample(train_df, train_df["labels"])
@@ -659,18 +704,40 @@ class Ensemble(Common):
         train_df, train_labels = self.split_labels(train_df)
         test_df, test_labels = self.split_labels(test_df)
 
-        train_df = self.dummy_columns(train_df)
-        test_df = self.dummy_columns(test_df)
+        # print(train_df.head())
+        # train_df = self.dummy_columns(train_df)
+        # test_df = self.dummy_columns(test_df)
 
-        model = XGBClassifier()
+        # XGBoost
+        # model = XGBClassifier(
+        #     n_estimators=1000,
+        #     # early_stopping_rounds=15,
+        #     )
+        # model.fit(
+        #     train_df, train_labels,
+        #     eval_set=[(train_df, train_labels), (test_df, test_labels)],
+        #     verbose=True,
+        # )
+
+        # Random Forest
+        model = RandomForestClassifier(
+            n_estimators=1000,
+            verbose=True,
+            )
+        
+        model.fit(
+            train_df, train_labels,
+            )
+
+        # CatBoost
         # model = CatBoostClassifier(
         #     iterations=1000,
         #     use_best_model=True,
         # )
-        model.fit(
-            train_df, train_labels,
-            # eval_set=(test_df, test_labels),
-        )
+        # model.fit(
+        #     train_df, train_labels,
+        #     eval_set=(test_df, test_labels),
+        # )
 
         train_pred = model.predict(train_df)
         test_pred = model.predict(test_df)
@@ -678,6 +745,7 @@ class Ensemble(Common):
         feature_importance = model.feature_importances_
         sorted_idx = np.argsort(feature_importance)
 
+        # DRAW IMPORTANCE
         draw = Draw()
         plt.barh(range(len(sorted_idx)), feature_importance[sorted_idx], align="center")
         plt.yticks(range(len(sorted_idx)), np.array(train_df.columns)[sorted_idx])
@@ -687,8 +755,22 @@ class Ensemble(Common):
 
         # print(feature_importance)
 
-        print("accuracy(train): ", accuracy_score(train_labels, train_pred))
-        print("accuracy(test): ", accuracy_score(test_labels, test_pred))
+        accuracy_train = accuracy_score(train_labels, train_pred)
+        accuracy_test = accuracy_score(test_labels, test_pred)
+        f1_train = f1_score(train_labels, train_pred, average="macro")
+        f1_test = f1_score(test_labels, test_pred, average="macro")
+        print("accuracy(train): ", accuracy_train)
+        print("accuracy(test): ", accuracy_test)
+        
+
+        fname = os.path.join(self.results, "metrics.json")
+        with open(fname, "w") as f:
+            json.dump({
+                "accuracy_train": accuracy_train,
+                "accuracy_test": accuracy_test,
+                "f1_train": f1_train,
+                "f1_test": f1_test,
+            }, f, indent=2)
         
         # Draw Confusion Matrix
         fname = os.path.join(self.results, "cm.pdf")
@@ -712,10 +794,14 @@ class Ensemble(Common):
             df = pd.concat([self.drop_column(df, column), pd.get_dummies(df[column], prefix=column, prefix_sep='-')], axis=1)
         return df
 
-    def load_data(self):
-        train_fname = os.path.join(self.results, "train_predict.csv")
+    def load_data(self, is_predict=True):
+        if is_predict:
+            train_fname = os.path.join(self.results, "train_predict_weighted.csv")
+            test_fname = os.path.join(self.results, "test_predict_weighted.csv")
+        else:
+            train_fname = os.path.join(self.results, "train_proba_weighted.csv")
+            test_fname = os.path.join(self.results, "test_proba_weighted.csv")
         train_df = pd.read_csv(train_fname)
-        test_fname = os.path.join(self.results, "test_predict.csv")
         test_df = pd.read_csv(test_fname)
         return train_df, test_df
 

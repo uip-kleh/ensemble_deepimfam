@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from new_deepimfam.component import DeepImFam
 
@@ -15,7 +16,7 @@ class Split3DeepImFam(DeepImFam):
         
         # SPLIT DATA
         train_df, test_df = self.split_train_test(df)
-        train_df, val_df = self.split_train_test(train_df)
+        train_df, val_df = self.split_train_test(train_df, test_size=.5)
 
         # CALL GENERATOR
         image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -26,7 +27,7 @@ class Split3DeepImFam(DeepImFam):
             batch_size=self.BATCH_SIZE
         )
         
-        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
+        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
         
         # CALLBACK
@@ -91,21 +92,53 @@ class Split3DeepImFam(DeepImFam):
         val_gen = image_data_frame_gen.get_generator(df=val_df, shuffle=True)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)        
 
+        # LOAD MODEL
         model = self.load_model()
 
-        train_pred = np.argmax(model.predict(train_gen), axis=1)
-        test_pred = np.argmax(model.predict(test_gen), axis=1)
+        # PREDICT
+        train_proba = model.predict(train_gen)
+        test_proba = model.predict(test_gen)
+        val_proba = model.predict(val_gen)
+        train_pred = np.argmax(train_proba, axis=1)
+        val_pred = np.argmax(val_proba, axis=1)
+        test_pred = np.argmax(test_proba, axis=1)
 
-        train_fname = os.path.join(self.results, "train_predict.csv")
-        test_fname = os.path.join(self.results, "test_predict.csv")
-        print(train_fname)
+        # SAVE PREDICT PROBA
+        train_fname = os.path.join(self.results, "train_proba_weighted.csv")
+        val_fname = os.path.join(self.results, "val_proba_weighted.csv")
+        test_fname = os.path.join(self.results, "test_proba_weighted.csv")
         if not os.path.exists(train_fname):
             self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"labels": val_gen.labels}, val_fname)
             self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
-        
+
+        train_dict = self.load_csv_as_dict(train_fname)
+        val_dict = self.load_csv_as_dict(val_fname)
+        test_dict = self.load_csv_as_dict(test_fname)
+        for i in range(5):
+            train_dict["-".join([self.index1, self.index2, str(i)])] = train_proba[:, i]
+            val_dict["-".join([self.index1, self.index2, str(i)])] = val_proba[:, i]
+            test_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+        self.save_dict_as_dataframe(train_dict, train_fname)
+        self.save_dict_as_dataframe(val_dict, val_fname)
+        self.save_dict_as_dataframe(test_dict, test_fname)
+
+        # SAVE PREDICT LABELS
+        train_fname = os.path.join(self.results, "train_predict_weighted.csv")
+        val_fname = os.path.join(self.results, "val_predict_weighted.csv")
+        test_fname = os.path.join(self.results, "test_predict_weighted.csv")
+        if not os.path.exists(train_fname):
+            self.save_dict_as_dataframe({"labels": train_gen.labels}, train_fname)
+            self.save_dict_as_dataframe({"labels": val_gen.labels}, val_fname)
+            self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
+
         train_dict = self.load_csv_as_dict(train_fname)
         train_dict["-".join([self.index1, self.index2])] = train_pred.tolist()
         self.save_dict_as_dataframe(train_dict, train_fname)
+        
+        val_dict = self.load_csv_as_dict(val_fname)
+        val_dict["-".join([self.index1, self.index2])] = val_pred.tolist()
+        self.save_dict_as_dataframe(val_dict, val_fname)
 
         test_dict = self.load_csv_as_dict(test_fname)
         test_dict["-".join([self.index1, self.index2])] = test_pred.tolist()
@@ -114,5 +147,5 @@ class Split3DeepImFam(DeepImFam):
 if __name__ == "__main__":
     config_path = "new_deepimfam/config.yaml"
     train_deepimfam = Split3DeepImFam(config_path=config_path)
-    # train_deepimfam.train()
+    train_deepimfam.train()
     train_deepimfam.predict()
