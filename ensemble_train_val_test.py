@@ -14,7 +14,7 @@ class Split3Ensemble(Ensemble):
         super().__init__(config_path)
         
     def predict(self):
-        train_df, val_df, test_df = self.load_data(is_predict=False)
+        train_df, val_df, test_df = self.load_data(is_predict=True)
         
         print(val_df.head())
         
@@ -26,26 +26,27 @@ class Split3Ensemble(Ensemble):
         test_df, test_labels = self.split_labels(test_df)
         
         # XGBoost
-        model = XGBClassifier(
-            n_estimators=1000,
-            # early_stopping_rounds=15,
-            )
-        model.fit(
-            val_df, val_labels,
-            eval_set=[(val_df, val_labels), (test_df, test_labels)],
-            verbose=True,
-        )
+        # model = XGBClassifier(
+        #     n_estimators=1000,
+        #     # early_stopping_rounds=15,
+        #     )
+        # model.fit(
+        #     train_df, train_labels,
+        #     eval_set=[(train_df, train_labels), (test_df, test_labels)],
+        #     verbose=True,
+        # )
 
         # Random Forest
-        # model = RandomForestClassifier(
-        #     n_estimators=1000,
-        #     verbose=True,
-        #     )
+        model = RandomForestClassifier(
+            n_estimators=1000,
+            verbose=True,
+            )
         
-        # model.fit(
-        #     val_df, val_labels,
-        #     )
+        model.fit(
+            val_df, val_labels,
+            )
 
+        train_pred = model.predict(train_df)
         val_pred = model.predict(val_df)
         test_pred = model.predict(test_df)
 
@@ -62,10 +63,13 @@ class Split3Ensemble(Ensemble):
 
         # print(feature_importance)
 
+        accuracy_train = accuracy_score(train_labels, train_pred)
         accuracy_val = accuracy_score(val_labels, val_pred)
         accuracy_test = accuracy_score(test_labels, test_pred)
+        f1_train = f1_score(train_labels, train_pred, average="macro")
         f1_val = f1_score(val_labels, val_pred, average="macro")
         f1_test = f1_score(test_labels, test_pred, average="macro")
+        print("accuracy(train):", accuracy_train)
         print("accuracy(val): ", accuracy_val)
         print("accuracy(test): ", accuracy_test)
         

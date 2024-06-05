@@ -30,7 +30,8 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 class Common:
-    def __init__(self, config_path) -> None:
+    def __init__(self, config_path, index) -> None:
+        self.index = index
         self.set_config(config_path)
 
     def set_config(self, config_path):
@@ -50,11 +51,8 @@ class Common:
 
             # EXPERIMENT INDEX
             self.DATA_NUM = args["DATA_NUM"]
-            self.method_directory = self.join_home(args["method_directory"])
-            self.index1 = args["index1"]
-            self.index2 = args["index2"]
-            index_combination = "_".join([self.index1, self.index2])
-            self.experiment_directory = self.make_directory(os.path.join(self.method_directory, index_combination))
+            self.method_directory = self.join_home(args["method_directory"], is_dir=True)
+            self.experiment_directory = self.make_directory(os.path.join(self.method_directory, self.index))
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
             self.results_directory = self.make_directory(os.path.join(self.experiment_directory, "results"))
@@ -123,8 +121,8 @@ class Draw:
 
 # CALC CORR
 class AAindex1(Common):
-    def __init__(self, config_path) -> None:
-        Common.__init__(self, config_path)
+    def __init__(self, config_path, index) -> None:
+        Common.__init__(self, config_path, index)
         self.load_aaindex1()
 
     def calc(self):
@@ -165,8 +163,8 @@ class AAindex1(Common):
         print(self.aaindex1[key2])
 
 class ImageGenerator(Common):
-    def __init__(self, config_path) -> None:
-        Common.__init__(self, config_path)
+    def __init__(self, config_path, index) -> None:
+        Common.__init__(self, config_path, index)
 
     def calc_coordinate(self):
         vectors = self.generate_std_vectors()
@@ -175,27 +173,27 @@ class ImageGenerator(Common):
     # GENERATE STANDRIZED VECTOR
     def generate_std_vectors(self):
         self.load_aaindex1()
-        keys = self.aaindex1[self.index1].keys()
-        values1 = np.array(list(self.aaindex1[self.index1].values()))
-        values2 = np.array(list(self.aaindex1[self.index2].values()))
+        keys = self.aaindex1[self.index].keys()
+        values1 = np.array(list(self.aaindex1[self.index].values()))
+        # values2 = np.array(list(self.aaindex1[self.index2].values()))
+        values2 = np.array([0.1 for i in range(len(self.aaindex1[self.index].values()))])
         std_values1 = self.standarize(values1)
-        std_values2 = self.standarize(values2)
 
         vectors = {}
         for i, key in enumerate(keys):
-            vectors[key] = [std_values1[i], std_values2[i]]
+            vectors[key] = [std_values1[i], values2[i]]
         return vectors
     
     def generate_normed_verctors(self):
         self.load_aaindex1()
-        keys = self.aaindex1[self.index1].keys()
-        values1 = np.array(list(self.aaindex1[self.index1].values()))
-        values2 = np.array(list(self.aaindex1[self.index2].values()))
+        keys = self.aaindex1[self.index].keys()
+        values1 = np.array(list(self.aaindex1[self.index].values()))
+        # values2 = np.array(list(self.aaindex1[self.index2].values()))
+        values2 = np.array([0.1 for i in range(len(self.aaindex1[self.index].values()))])
         std_values1 = self.standarize(values1)
-        normed_values2 = self.normalize(values2) + 0.1
         vectors = {}
         for i, key in enumerate(keys):
-            vectors[key] = [std_values1[i], normed_values2[i]]
+            vectors[key] = [std_values1[i], values2[i]]
         return vectors
         
 
@@ -203,6 +201,7 @@ class ImageGenerator(Common):
         return (values - np.mean(values)) / np.std(values) 
     
     def normalize(self, values: np.array):
+        print(values)
         return (values - np.min(values)) / (np.max(values) - np.min(values))
     
     def draw_vectors(self, vectors):
@@ -210,7 +209,7 @@ class ImageGenerator(Common):
         for key, items in vectors.items():
             plt.plot([0, items[0]], [0, items[1]])
             plt.text(items[0], items[1], key)
-        plt.title("_".join([self.index1, self.index1]))
+        plt.title(self.index)
         fname = os.path.join(self.experiment_directory, "vectors.pdf")
         draw = Draw()
         draw.save_figure_as_pdf(fname)
@@ -373,8 +372,8 @@ class ImageGenerator(Common):
             cv2.imwrite(png_fname, cv2.imread(pgm_fname))
 
 class DeepImFam(Common):
-    def __init__(self, config_path) -> None:
-        Common.__init__(self, config_path)
+    def __init__(self, config_path, index) -> None:
+        Common.__init__(self, config_path, index)
 
     def train(self):
         df = pd.read_csv(self.images_info_path)
@@ -554,8 +553,8 @@ class DeepImFam(Common):
         train_dict = self.load_csv_as_dict(train_fname)
         test_dict = self.load_csv_as_dict(test_fname)
         for i in range(5):
-            train_dict["-".join([self.index1, self.index2, str(i)])] = train_proba[:, i]
-            test_dict["-".join([self.index1, self.index2, str(i)])] = test_proba[:, i]
+            train_dict["-".join([self.index, str(i)])] = train_proba[:, i]
+            test_dict["-".join([self.index, str(i)])] = test_proba[:, i]
         self.save_dict_as_dataframe(train_dict, train_fname)
         self.save_dict_as_dataframe(test_dict, test_fname)
 
@@ -567,11 +566,11 @@ class DeepImFam(Common):
             self.save_dict_as_dataframe({"labels": test_gen.labels}, test_fname)
 
         train_dict = self.load_csv_as_dict(train_fname)
-        train_dict["-".join([self.index1, self.index2])] = train_pred.tolist()
+        train_dict[self.index] = train_pred.tolist()
         self.save_dict_as_dataframe(train_dict, train_fname)
 
         test_dict = self.load_csv_as_dict(test_fname)
-        test_dict["-".join([self.index1, self.index2])] = test_pred.tolist()
+        test_dict[self.index] = test_pred.tolist()
         self.save_dict_as_dataframe(test_dict, test_fname)
 
         return train_gen.labels, train_pred, test_gen.labels, test_pred
@@ -693,8 +692,8 @@ class DeepImFam(Common):
     
 
 class Ensemble(Common):
-    def __init__(self, config_path) -> None:
-        Common.__init__(self, config_path)
+    def __init__(self, config_path, index) -> None:
+        Common.__init__(self, config_path, index)
 
     def train(self):
         train_df, test_df = self.load_data(is_predict=False)
