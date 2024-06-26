@@ -341,11 +341,10 @@ class ImageGenerator(Common):
         width, height = max - min
         imgw, imgh = img - 1
 
-        # rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
-        rat = np.array([width / imgw, height / imgh])
+        rat = np.max([width / imgw, height / imgh]) # SAME RATION OF HEIGHT AND WIDTH
+        # rat = np.array([width / imgw, height / imgh])
         dat = dat / rat
-        # max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
-        max, min = max / rat, min / rat
+        max, min = (max, min) / rat # SAME RATION OF HEIGHT AND WIDTH
 
         mid = (max + min) / 2.0
         dat = [row - mid + img / 2. for row in dat]
