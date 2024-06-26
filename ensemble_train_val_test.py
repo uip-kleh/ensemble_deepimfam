@@ -50,6 +50,7 @@ class Split3Ensemble(Ensemble):
                 sampled_val_df, sampled_val_labels,
                 )
 
+        train_pred = model.predict(train_df)
         val_pred = model.predict(val_df)
         test_pred = model.predict(test_df)
 
@@ -75,10 +76,13 @@ class Split3Ensemble(Ensemble):
 
         # print(feature_importance)
 
+        accuracy_train = accuracy_score(train_labels, train_pred)
         accuracy_val = accuracy_score(val_labels, val_pred)
         accuracy_test = accuracy_score(test_labels, test_pred)
+        f1_train = f1_score(train_labels, train_pred, average="macro")
         f1_val = f1_score(val_labels, val_pred, average="macro")
         f1_test = f1_score(test_labels, test_pred, average="macro")
+        print("accuracy(train):", accuracy_train)
         print("accuracy(val): ", accuracy_val)
         print("accuracy(test): ", accuracy_test)
         
