@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import json
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
-from new_deepimfam.component import DeepImFam
+from new_deepimfam.component import DeepImFam, Draw
 
 class Split3DeepImFam(DeepImFam):
     def __init__(self, config_path) -> None:
@@ -16,7 +16,7 @@ class Split3DeepImFam(DeepImFam):
         
         # SPLIT DATA
         train_df, test_df = self.split_train_test(df)
-        train_df, val_df = self.split_train_test(train_df, test_size=.5)
+        train_df, val_df = self.split_train_test(train_df, test_size=.2)
 
         # CALL GENERATOR
         image_data_frame_gen = self.ImageDataFrameGenerator(
@@ -27,14 +27,14 @@ class Split3DeepImFam(DeepImFam):
             batch_size=self.BATCH_SIZE
         )
         
-        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=False)
+        train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
         
         # CALLBACK
         reduce_lr = ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.1,
-            patience=20,
+            patience=10,
             min_lr=1e-5
         )
 
@@ -42,7 +42,7 @@ class Split3DeepImFam(DeepImFam):
         early_stopping = EarlyStopping(
             monitor="val_loss",
             min_delta=0.0,
-            patience=80,
+            patience=30,
         )
 
         model = self.generate_model()
@@ -79,6 +79,8 @@ class Split3DeepImFam(DeepImFam):
         train_df, test_df = self.split_train_test(df)
         train_df, val_df = self.split_train_test(train_df)
         
+        print(len(train_df), len(test_df), len(val_df))
+        
         # SET ImageDataDrameGenerator
         image_data_frame_gen = self.ImageDataFrameGenerator(
             images_directory=self.images_directory,
@@ -89,7 +91,7 @@ class Split3DeepImFam(DeepImFam):
         )
 
         train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
-        val_gen = image_data_frame_gen.get_generator(df=val_df, shuffle=True)
+        val_gen = image_data_frame_gen.get_generator(df=val_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)        
 
         # LOAD MODEL
@@ -102,6 +104,36 @@ class Split3DeepImFam(DeepImFam):
         train_pred = np.argmax(train_proba, axis=1)
         val_pred = np.argmax(val_proba, axis=1)
         test_pred = np.argmax(test_proba, axis=1)
+        
+        print(len(train_pred), len(val_pred), len(test_pred))
+        
+        # Draw Confusion Matrix
+        draw = Draw()
+
+        fname = os.path.join(self.results_directory, "cm_val.pdf")
+        cm = confusion_matrix(val_gen.labels, val_pred)
+        draw.draw_cm(cm, fname)
+        fname = os.path.join(self.results_directory, "normed_cm_val.pdf")
+        normed_cm = confusion_matrix(val_gen.labels, val_pred, normalize="true")
+        draw.draw_cm(normed_cm, fname, norm=True)
+
+        
+        fname = os.path.join(self.results_directory, "cm.pdf")
+        cm = confusion_matrix(test_gen.labels, test_pred)
+        draw.draw_cm(cm, fname)
+        fname = os.path.join(self.results_directory, "normed_cm.pdf")
+        normed_cm = confusion_matrix(test_gen.labels, test_pred, normalize="true")
+        draw.draw_cm(normed_cm, fname, norm=True)
+        
+        # SAVE METRICS
+        accuracy = accuracy_score(val_gen.labels, val_pred)
+        f1 = f1_score(val_gen.labels, val_pred, average="macro")
+        metrics = {
+            "accuracy": accuracy,
+            "f1-score": f1,
+        }        
+        fname = os.path.join(self.results_directory, "metrics.json")
+        self.save_obj(metrics, fname)
 
         # SAVE PREDICT PROBA
         train_fname = os.path.join(self.results, "train_proba_weighted.csv")

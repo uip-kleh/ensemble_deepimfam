@@ -18,7 +18,7 @@ import keras
 from keras_preprocessing.image import ImageDataGenerator
 from imblearn.over_sampling import RandomOverSampler
 from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from keras.layers import Conv2D, Conv2DTranspose, MaxPooling2D, Flatten, Dense, Dropout
 from keras.optimizers import Adam
 from keras.regularizers import l2
 from keras.losses import CategoricalFocalCrossentropy
@@ -50,7 +50,7 @@ class Common:
 
             # EXPERIMENT INDEX
             self.DATA_NUM = args["DATA_NUM"]
-            self.method_directory = self.join_home(args["method_directory"])
+            self.method_directory = self.join_home(args["method_directory"], is_dir=True)
             self.index1 = args["index1"]
             self.index2 = args["index2"]
             index_combination = "_".join([self.index1, self.index2])
@@ -399,26 +399,25 @@ class DeepImFam(Common):
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
         # CALLBACK
-        # reduce_lr = ReduceLROnPlateau(
-        #     monitor='val_loss',
-        #     factor=0.1,
-        #     patience=10,
-        #     min_lr=1e-5
-        # )
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.1,
+            patience=10,
+            min_lr=1e-5
+        )
 
-        # モデル
-        # early_stopping = EarlyStopping(
-        #     monitor="val_loss",
-        #     min_delta=0.0,
-        #     patience=30,
-        # )
+        early_stopping = EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.0,
+            patience=30,
+        )
 
         model = self.generate_model()
         history = model.fit(
             train_gen,
             validation_data=test_gen,
-            epochs=30,
-            # callbacks=[reduce_lr, early_stopping],
+            epochs=1000,
+            callbacks=[reduce_lr, early_stopping],
             batch_size=512,
         )    
 
@@ -460,7 +459,7 @@ class DeepImFam(Common):
             MaxPooling2D((2, 2)),
             Conv2D(64, (3, 3), activation="relu", padding="same"),
             MaxPooling2D((2, 2)),
-            Conv2D(64, (3, 3), padding="same"),
+            Conv2D(64, (3, 3), activation="relu", padding="same"),
             MaxPooling2D((2, 2)),
             Flatten(),
             Dense(64, activation="relu", kernel_regularizer=l2(0.001)),
@@ -473,6 +472,8 @@ class DeepImFam(Common):
             Dense(5, activation="softmax"),
             ])
         
+        model.summary()
+
         model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=0.001),
             # loss="categorical_crossentropy",
@@ -647,7 +648,7 @@ class DeepImFam(Common):
             reduce_lr = ReduceLROnPlateau(
                 monitor='val_loss',
                 factor=0.1,
-                patience=20,
+                patience=10,
                 min_lr=1e-5,
             )
 
@@ -655,7 +656,7 @@ class DeepImFam(Common):
             early_stopping = EarlyStopping(
                 monitor="val_loss",
                 min_delta=0.0,
-                patience=80,
+                patience=30,
             )
 
             model = self.generate_model()
@@ -696,7 +697,7 @@ class Ensemble(Common):
     def __init__(self, config_path) -> None:
         Common.__init__(self, config_path)
 
-    def train(self):
+    def train(self, is_xgboost):
         train_df, test_df = self.load_data(is_predict=False)
 
         sampler = RandomOverSampler(random_state=42)
@@ -710,27 +711,29 @@ class Ensemble(Common):
         # test_df = self.dummy_columns(test_df)
 
         # XGBoost
-        model = XGBClassifier(
-            n_estimators=1000,
-            # early_stopping_rounds=15,
+        if is_xgboost:
+            model = XGBClassifier(
+                n_estimators=1000,
+                # early_stopping_rounds=15,
+                )
+            model.fit(
+                train_df, train_labels,
+                eval_set=[(train_df, train_labels), (test_df, test_labels)],
+                verbose=True,
             )
-        model.fit(
-            train_df, train_labels,
-            eval_set=[(train_df, train_labels), (test_df, test_labels)],
-            verbose=True,
-        )
 
         # Random Forest
-        # model = RandomForestClassifier(
-        #     n_estimators=1000,
-        #     verbose=True,
-        #     )
-        
-        # model.fit(
-        #     train_df, train_labels,
-        #     )
+        else:
+            model = RandomForestClassifier(
+                n_estimators=1000,
+                verbose=True,
+                )
+            
+            model.fit(
+                train_df, train_labels,
+                )
 
-        # CatBoost
+        # # CatBoost
         # model = CatBoostClassifier(
         #     iterations=1000,
         #     use_best_model=True,
