@@ -8,8 +8,8 @@ class ImageGeneratorUsingIndex(ImageGenerator):
         
     def generate_vector_using_index(self):
         self.load_aaindex1()
-        keys = self.aaindex1[index].keys()
-        values = np.array(list(self.aaindex1[index].values()))        
+        keys = self.aaindex1[self.index].keys()
+        values = np.array(list(self.aaindex1[self.index].values()))        
         values_std = self.standarize(values)
         vectors = {}
         for i, key in enumerate(keys):
@@ -34,15 +34,21 @@ class ImageGeneratorUsingIndex(ImageGenerator):
                     print("{}, {}".format(x, y), file=f)
         
 if __name__ == "__main__":
-    config_path = "new_deepimfam/config.yaml"
-    index = "ANDN920101"
-    image_gen = ImageGeneratorUsingIndex(config_path, index)
-    image_gen.calc_coordinate()
-    
-    image_gen.make_images_info()
 
-    image_gen.generate_images()
-    image_gen.convert_pgm()
+    entry_path = "/home/mizuno/data/aaindex_entry.txt"
+    with open(entry_path, "r") as f:
+        for entry in f.read().splitlines():
+
+            config_path = "new_deepimfam/config.yaml"
+            print(entry)
+
+            image_gen = ImageGeneratorUsingIndex(config_path, entry)
+            image_gen.calc_coordinate()
+            
+            image_gen.make_images_info()
+
+            image_gen.generate_images()
+            image_gen.convert_pgm()
 
     
     
