@@ -28,14 +28,31 @@ class DeepImFamUsingIndex(DeepImFam):
         )
 
         train_gen = image_data_frame_gen.get_generator(df=train_df, shuffle=True)
+        val_gen = image_data_frame_gen.get_generator(df=val_df, shuffle=False)
         test_gen = image_data_frame_gen.get_generator(df=test_df, shuffle=False)
 
+        # SET CALLBACK
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.1,
+            patience=10,
+            min_lr=1e-5
+        )
+
+        early_stopping = EarlyStopping(
+            monitor="val_loss",
+            min_delta=0.0,
+            patience=30,
+        )
+
+        # FIT MODEL
         model = self.generate_model()
         history = model.fit(
             train_gen,
-            validation_data=test_gen,
-            epochs=5,
+            validation_data=val_gen,
+            epochs=1000,
             batch_size=512,
+            callbacks=[reduce_lr, early_stopping],
         )    
 
         # SAVE MODEL
@@ -161,8 +178,12 @@ class DeepImFamUsingIndex(DeepImFam):
         self.save_dict_as_dataframe(test_dict, test_fname)
 
 if __name__ == "__main__":
+    entry_path = "/home/mizuno/data/aaindex_entry.txt"
     config_path = "new_deepimfam/config.yaml"
-    index = "ANDN920101"
-    deepimfam = DeepImFamUsingIndex(config_path, index)
-    # deepimfam.train()   
-    deepimfam.predict()
+    with open(entry_path, "r") as f:
+        for entry in f.read().splitlines():
+            deepimfam = DeepImFamUsingIndex(config_path, entry)
+            print(deepimfam.images_info_path)
+            # deepimfam.train()   
+            # deepimfam.predict()
+            break

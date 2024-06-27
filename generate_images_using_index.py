@@ -36,10 +36,9 @@ class ImageGeneratorUsingIndex(ImageGenerator):
 if __name__ == "__main__":
 
     entry_path = "/home/mizuno/data/aaindex_entry.txt"
+    config_path = "new_deepimfam/config.yaml"
     with open(entry_path, "r") as f:
         for entry in f.read().splitlines():
-
-            config_path = "new_deepimfam/config.yaml"
             print(entry)
 
             image_gen = ImageGeneratorUsingIndex(config_path, entry)
