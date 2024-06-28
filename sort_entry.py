@@ -6,4 +6,4 @@ if __name__ == "__main__":
     with open(entry_path, "r") as f:
         for entry in f.read().splitlines():
             hisotry_path = os.path.join(os.path.join(base_path, entry), "result/FOCAL_LOSS/history/csv")
-            print(result_path)
+            print(hisotry_path)
