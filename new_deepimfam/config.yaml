@@ -2,8 +2,8 @@
 data_directory: data
 results_directory: data/results
 aaindex1_path: workplace/pyaaindex/aaindex1.json
-method_directory: data/mizuta_NORM_INDEX
-method: mizuta_NORM_INDEX
+method_directory: data/mizuta_NORM_INDEX_256
+method: mizuta_NORM_INDEX_256
 model_method: FOCAL_LOSS
 amino_train_data: data/amino_data/GPCR/cv_0/train.txt
 amino_test_data: data/amino_data/GPCR/cv_0/test.txt
@@ -12,7 +12,7 @@ amino_info_data: data/amino_data/GPCR/trans.txt
 DATA_NUM: 7938
 # EXPERIMENT INDEX
 index1: PALJ810108
-IMAGE_SIZE: 128
+IMAGE_SIZE: 256
 hierarchy_label: family
 DROPOUT_RATIO: .5
 BATCH_SIZE: 512
