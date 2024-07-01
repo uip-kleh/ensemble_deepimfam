@@ -40,7 +40,8 @@ class Common:
             args = yaml.safe_load(f)
             # PATH
             self.data_direcotry = self.join_home(args["data_directory"], True)
-            self.results = self.join_home(args["results_directory"], True)
+            self.storage_path = args["storage_path"]
+            self.results = self.join_storage(args["results_directory"], True)
             self.method = args["method"]
             self.results = self.make_directory(os.path.join(self.results, self.method))
             self.results = self.make_directory(os.path.join(self.results, args["model_method"]))
@@ -51,7 +52,7 @@ class Common:
 
             # EXPERIMENT INDEX
             self.DATA_NUM = args["DATA_NUM"]
-            self.method_directory = self.join_home(args["method_directory"], is_dir=True)
+            self.method_directory = self.join_storage(args["method_directory"], is_dir=True)
             self.experiment_directory = self.make_directory(os.path.join(self.method_directory, self.index))
             self.coordinates_directory = self.make_directory(os.path.join(self.experiment_directory, "coordinates"))
             self.images_directory = self.make_directory(os.path.join(self.experiment_directory, "images"))
@@ -70,6 +71,12 @@ class Common:
             self.make_directory(fname)
         return fname
     
+    def join_storage(self, fname, is_dir=False):
+        fname = os.path.join(self.storage_path, fname)
+        if is_dir:
+            self.make_directory(fname)
+        return fname
+
     def make_directory(self, fname):
         if not os.path.exists(fname):
             os.mkdir(fname)

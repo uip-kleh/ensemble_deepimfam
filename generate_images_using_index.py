@@ -40,7 +40,6 @@ if __name__ == "__main__":
     with open(entry_path, "r") as f:
         for entry in f.read().splitlines():
             print(entry)
-
             image_gen = ImageGeneratorUsingIndex(config_path, entry)
             image_gen.calc_coordinate()
             

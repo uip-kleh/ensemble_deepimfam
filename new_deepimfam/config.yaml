@@ -1,13 +1,15 @@
 # DATA PATH
 data_directory: data
-results_directory: data/results
+storage_path: /media/ssd
+results_directory: results
 aaindex1_path: workplace/pyaaindex/aaindex1.json
-method_directory: data/mizuta_NORM_INDEX_256
+method_directory: mizuta_NORM_INDEX_256
 method: mizuta_NORM_INDEX_256
 model_method: FOCAL_LOSS
 amino_train_data: data/amino_data/GPCR/cv_0/train.txt
 amino_test_data: data/amino_data/GPCR/cv_0/test.txt
 amino_info_data: data/amino_data/GPCR/trans.txt
+
 
 DATA_NUM: 7938
 # EXPERIMENT INDEX
